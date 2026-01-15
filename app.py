@@ -30,6 +30,108 @@ HC_LIGHT_MINT = "#b8e0d4"
 HC_WHITE = "#ffffff"
 HC_CREAM = "#f5f5f0"
 
+# Retail Profitability Cost Assumptions
+RETAIL_COSTS = {
+    'freight_per_unit': 0.14,
+    'freight_per_case': 0.66,
+    'case_picking_rate': 0.14,
+    'order_processing_fee': 1.09,
+    'order_tracking_fee': 0.27,
+    'case_labelling': 0.00,
+    'joe_commission_pct': 0.10,  # 10%
+    'sku_case_cost': 0.10,
+    'sleeve_x6': 0.67,
+    'case_production_cost': 15.48,
+}
+
+# Delivery Cost Lookup Table (by number of cases)
+DELIVERY_COSTS = {
+    1: 24.00, 2: 24.00, 3: 24.00, 4: 24.00, 5: 24.00, 6: 24.00,
+    7: 26.95, 8: 30.80, 9: 30.80, 10: 31.50,
+    11: 34.65, 12: 37.80, 13: 40.95, 14: 44.10, 15: 47.25,
+    16: 48.00, 17: 48.45, 18: 51.30, 19: 54.15, 20: 57.00,
+    21: 57.75, 22: 60.50, 23: 63.25, 24: 66.00, 25: 68.75,
+    26: 68.75, 27: 68.75, 28: 70.00, 29: 72.50, 30: 75.00,
+    31: 77.50, 32: 80.00, 33: 82.50, 34: 85.00, 35: 87.50,
+    36: 87.50, 37: 87.50, 38: 89.30, 39: 91.65, 40: 94.00,
+    41: 96.35, 42: 98.70, 43: 101.05, 44: 103.40, 45: 105.75,
+    46: 108.10, 47: 110.45, 48: 112.80, 49: 115.15, 50: 117.50,
+    51: 109.65, 52: 111.80, 53: 113.95, 54: 116.10, 55: 118.25,
+    56: 120.40, 57: 122.55, 58: 124.70, 59: 126.85, 60: 129.00,
+}
+
+
+def get_delivery_cost(num_cases: int) -> float:
+    """Get delivery cost based on number of cases."""
+    if num_cases <= 0:
+        return 0.0
+    if num_cases in DELIVERY_COSTS:
+        return DELIVERY_COSTS[num_cases]
+    # For cases > 60, extrapolate based on last known values
+    if num_cases > 60:
+        # Approximate: use £2.15 per case above 60
+        return DELIVERY_COSTS[60] + (num_cases - 60) * 2.15
+    return 0.0
+
+
+def calculate_retail_profitability(revenue: float, num_cases: int, num_units: int) -> dict:
+    """
+    Calculate retail order profitability based on cost assumptions.
+
+    Args:
+        revenue: Total order revenue
+        num_cases: Number of cases in order (typically = quantity for retail)
+        num_units: Number of individual units
+
+    Returns:
+        Dict with cost breakdown and profit
+    """
+    c = RETAIL_COSTS
+
+    # Per-order costs
+    order_costs = c['order_processing_fee'] + c['order_tracking_fee']
+
+    # Per-case costs (excluding delivery which uses lookup)
+    case_costs = num_cases * (
+        c['freight_per_case'] +
+        c['case_picking_rate'] +
+        c['case_labelling'] +
+        c['sku_case_cost'] +
+        c['sleeve_x6']
+    )
+
+    # COGS (case production cost)
+    cogs = num_cases * c['case_production_cost']
+
+    # Per-unit costs
+    unit_costs = num_units * c['freight_per_unit']
+
+    # Delivery cost (from lookup table)
+    delivery_cost = get_delivery_cost(num_cases)
+
+    # Commission
+    commission = revenue * c['joe_commission_pct']
+
+    # Total costs
+    total_costs = order_costs + case_costs + cogs + unit_costs + delivery_cost + commission
+
+    # Profit
+    profit = revenue - total_costs
+    margin_pct = (profit / revenue * 100) if revenue > 0 else 0
+
+    return {
+        'revenue': revenue,
+        'cogs': cogs,
+        'order_costs': order_costs,
+        'case_costs': case_costs,
+        'unit_costs': unit_costs,
+        'delivery_cost': delivery_cost,
+        'commission': commission,
+        'total_costs': total_costs,
+        'profit': profit,
+        'margin_pct': margin_pct,
+    }
+
 
 # Page config
 st.set_page_config(
@@ -586,6 +688,128 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
                     "Total": st.column_config.NumberColumn(format="£%.2f"),
                 }
             )
+
+        # Profitability Section - Exclude Go Puff and On the Rocks
+        st.markdown("---")
+        st.markdown("### Order Profitability")
+        st.caption("Excludes Go Puff and On the Rocks orders")
+
+        # Filter out Go Puff and On the Rocks for profitability
+        def is_excluded_store(store_name):
+            store_lower = (store_name or '').lower()
+            return 'go puff' in store_lower or 'gopuff' in store_lower or 'on the rocks' in store_lower
+
+        df_profit = df_all[~df_all['Store'].apply(is_excluded_store)].copy()
+
+        if not df_profit.empty:
+            # Calculate profitability for each order
+            # Assume Qty = number of cases for retail orders
+            df_profit['Cases'] = df_profit['Qty']
+            df_profit['Units'] = df_profit['Qty']  # Adjust if units differ from cases
+
+            # Calculate profitability metrics
+            profit_data = []
+            for _, row in df_profit.iterrows():
+                prof = calculate_retail_profitability(
+                    revenue=row['Total'],
+                    num_cases=int(row['Cases']),
+                    num_units=int(row['Units'])
+                )
+                profit_data.append({
+                    'Store': row['Store'],
+                    'Date': row['Date'],
+                    'Reference': row['Reference'],
+                    'Cases': int(row['Cases']),
+                    'Revenue': prof['revenue'],
+                    'COGS': prof['cogs'],
+                    'Fulfillment': prof['order_costs'] + prof['case_costs'] + prof['unit_costs'],
+                    'Delivery': prof['delivery_cost'],
+                    'Commission': prof['commission'],
+                    'Profit': prof['profit'],
+                    'Margin %': prof['margin_pct'],
+                })
+
+            df_profit_display = pd.DataFrame(profit_data)
+
+            # Summary KPIs
+            total_revenue = df_profit_display['Revenue'].sum()
+            total_cogs = df_profit_display['COGS'].sum()
+            total_fulfillment = df_profit_display['Fulfillment'].sum()
+            total_delivery = df_profit_display['Delivery'].sum()
+            total_commission = df_profit_display['Commission'].sum()
+            total_profit = df_profit_display['Profit'].sum()
+            avg_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+
+            col1, col2, col3, col4, col5 = st.columns(5)
+            col1.metric("Total Revenue", format_currency(total_revenue))
+            col2.metric("Total COGS", format_currency(total_cogs))
+            col3.metric("Total Delivery", format_currency(total_delivery))
+            col4.metric("Total Profit", format_currency(total_profit))
+            col5.metric("Avg Margin", f"{avg_margin:.1f}%")
+
+            # Profitability by Store
+            st.markdown("#### Profitability by Store")
+            store_profit = df_profit_display.groupby('Store').agg({
+                'Cases': 'sum',
+                'Revenue': 'sum',
+                'COGS': 'sum',
+                'Fulfillment': 'sum',
+                'Delivery': 'sum',
+                'Commission': 'sum',
+                'Profit': 'sum',
+            }).reset_index()
+            store_profit['Margin %'] = (store_profit['Profit'] / store_profit['Revenue'] * 100).round(1)
+            store_profit = store_profit.sort_values('Profit', ascending=False)
+
+            st.dataframe(
+                store_profit,
+                hide_index=True,
+                use_container_width=True,
+                height=400,
+                column_config={
+                    "Cases": st.column_config.NumberColumn(format="%d"),
+                    "Revenue": st.column_config.NumberColumn(format="£%.2f"),
+                    "COGS": st.column_config.NumberColumn(format="£%.2f"),
+                    "Fulfillment": st.column_config.NumberColumn(format="£%.2f"),
+                    "Delivery": st.column_config.NumberColumn(format="£%.2f"),
+                    "Commission": st.column_config.NumberColumn(format="£%.2f"),
+                    "Profit": st.column_config.NumberColumn(format="£%.2f"),
+                    "Margin %": st.column_config.NumberColumn(format="%.1f%%"),
+                }
+            )
+
+            # Cost Assumptions
+            with st.expander("📊 Profitability Assumptions"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Per-Case & Per-Order Costs**")
+                    st.markdown(f"""
+| Cost Component | Value |
+|----------------|-------|
+| Case Production Cost (COGS) | £{RETAIL_COSTS['case_production_cost']:.2f} |
+| Freight Per Case | £{RETAIL_COSTS['freight_per_case']:.2f} |
+| Freight Per Unit | £{RETAIL_COSTS['freight_per_unit']:.2f} |
+| Case Picking Rate | £{RETAIL_COSTS['case_picking_rate']:.2f} |
+| Order Processing Fee | £{RETAIL_COSTS['order_processing_fee']:.2f} |
+| Order Tracking Fee | £{RETAIL_COSTS['order_tracking_fee']:.2f} |
+| SKU Case Cost | £{RETAIL_COSTS['sku_case_cost']:.2f} |
+| Sleeve x 6 | £{RETAIL_COSTS['sleeve_x6']:.2f} |
+| Joe Commission | {RETAIL_COSTS['joe_commission_pct']*100:.0f}% |
+                    """)
+                with col2:
+                    st.markdown("**Delivery Costs (by case count)**")
+                    st.markdown("""
+| Cases | Cost | Cases | Cost |
+|-------|------|-------|------|
+| 1-6 | £24.00 | 21-25 | £57.75-68.75 |
+| 7-10 | £26.95-31.50 | 26-30 | £68.75-75.00 |
+| 11-15 | £34.65-47.25 | 31-40 | £77.50-94.00 |
+| 16-20 | £48.00-57.00 | 41-50 | £96.35-117.50 |
+                    """)
+                st.caption("*Go Puff and On the Rocks orders are excluded from profitability calculations*")
+
+        else:
+            st.info("No orders available for profitability calculation (excluding Go Puff and On the Rocks).")
 
     except Exception as e:
         st.error(f"Error loading retail data: {e}")
