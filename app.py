@@ -450,6 +450,45 @@ def normalize_store_name(name: str) -> str:
     return normalized
 
 
+def is_excluded_store(store_name):
+    """Check if store should be excluded from profitability calculations."""
+    store_lower = (store_name or '').lower()
+    return 'go puff' in store_lower or 'gopuff' in store_lower or 'on the rocks' in store_lower
+
+
+def calculate_period_profitability(df_period):
+    """Calculate total profitability for a period's orders (excluding Go Puff/On the Rocks)."""
+    if df_period.empty:
+        return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0}
+
+    # Filter out excluded stores
+    df_eligible = df_period[~df_period['Store'].apply(is_excluded_store)]
+
+    if df_eligible.empty:
+        return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0}
+
+    total_revenue = 0
+    total_profit = 0
+
+    for _, row in df_eligible.iterrows():
+        revenue = row['Total']
+        num_cases = int(row['Qty'])
+        num_units = int(row['Qty'])
+
+        prof = calculate_retail_profitability(revenue, num_cases, num_units)
+        total_revenue += revenue
+        total_profit += prof['profit']
+
+    margin_pct = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+
+    return {
+        'revenue': total_revenue,
+        'profit': total_profit,
+        'margin_pct': margin_pct,
+        'orders': len(df_eligible)
+    }
+
+
 def render_retail_dashboard(date_min, date_max, date_start, date_end):
     """Render the Retail dashboard - orders with 'No Shipping Required' from Linnworks."""
     try:
@@ -485,9 +524,14 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             last_month_days = calendar.monthrange(today.year, today.month-1)[1]
             last_month_same_day = today.replace(month=today.month-1, day=min(today.day, last_month_days))
 
-        # Last year same period (LFL)
-        last_year_start = current_month_start.replace(year=today.year-1)
-        last_year_same_day = today.replace(year=today.year-1)
+        # Last year same period (LFL) - same month, 1st to same day
+        last_year_month_start = today.replace(year=today.year-1, month=today.month, day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Handle leap year edge case
+        try:
+            last_year_same_day = today.replace(year=today.year-1)
+        except ValueError:
+            # Feb 29 in leap year -> Feb 28
+            last_year_same_day = today.replace(year=today.year-1, day=28)
 
         # Filter data for each period
         df_mtd = df_all[(df_all['Date'] >= current_month_start) & (df_all['Date'] <= today)]
@@ -496,22 +540,47 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         # Last month same period (1st to same day of month)
         df_last_month = df_all[(df_all['Date'] >= last_month_start) & (df_all['Date'] <= last_month_same_day)]
 
-        # Last year same month period (LFL)
-        df_lfl = df_all[(df_all['Date'] >= last_year_start) & (df_all['Date'] <= last_year_same_day)]
+        # Last year same month period (LFL) - 1st to same day of same month last year
+        df_lfl = df_all[(df_all['Date'] >= last_year_month_start) & (df_all['Date'] <= last_year_same_day)]
 
-        # Calculate metrics
+        # YTD last year for comparison
+        last_year_ytd_start = current_year_start.replace(year=today.year-1)
+        try:
+            last_year_ytd_end = today.replace(year=today.year-1)
+        except ValueError:
+            last_year_ytd_end = today.replace(year=today.year-1, day=28)
+        df_ytd_lfl = df_all[(df_all['Date'] >= last_year_ytd_start) & (df_all['Date'] <= last_year_ytd_end)]
+
+        # Calculate revenue metrics
         mtd_revenue = df_mtd['Total'].sum()
         mtd_orders = len(df_mtd)
         ytd_revenue = df_ytd['Total'].sum()
 
         last_month_revenue = df_last_month['Total'].sum()
         lfl_revenue = df_lfl['Total'].sum()
+        ytd_lfl_revenue = df_ytd_lfl['Total'].sum()
 
-        # Calculate variances
+        # Calculate profitability for each period
+        mtd_profit_data = calculate_period_profitability(df_mtd)
+        ytd_profit_data = calculate_period_profitability(df_ytd)
+        last_month_profit_data = calculate_period_profitability(df_last_month)
+        lfl_profit_data = calculate_period_profitability(df_lfl)
+        ytd_lfl_profit_data = calculate_period_profitability(df_ytd_lfl)
+
+        # Calculate revenue variances
         vs_last_month = mtd_revenue - last_month_revenue
         vs_last_month_pct = ((mtd_revenue / last_month_revenue - 1) * 100) if last_month_revenue > 0 else 0
         vs_lfl = mtd_revenue - lfl_revenue
         vs_lfl_pct = ((mtd_revenue / lfl_revenue - 1) * 100) if lfl_revenue > 0 else 0
+
+        # Calculate profitability variances
+        mtd_profit_vs_lm = mtd_profit_data['profit'] - last_month_profit_data['profit']
+        mtd_profit_vs_lm_pct = ((mtd_profit_data['profit'] / last_month_profit_data['profit'] - 1) * 100) if last_month_profit_data['profit'] > 0 else 0
+        mtd_profit_vs_lfl = mtd_profit_data['profit'] - lfl_profit_data['profit']
+        mtd_profit_vs_lfl_pct = ((mtd_profit_data['profit'] / lfl_profit_data['profit'] - 1) * 100) if lfl_profit_data['profit'] > 0 else 0
+
+        ytd_profit_vs_lfl = ytd_profit_data['profit'] - ytd_lfl_profit_data['profit']
+        ytd_profit_vs_lfl_pct = ((ytd_profit_data['profit'] / ytd_lfl_profit_data['profit'] - 1) * 100) if ytd_lfl_profit_data['profit'] > 0 else 0
 
         # Status bar
         st.markdown(f"""
@@ -521,7 +590,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         </div>
         """, unsafe_allow_html=True)
 
-        # KPI Row 1 - MTD and YTD
+        # KPI Row 1 - MTD Revenue and Profitability
         st.markdown("### Month to Date Performance")
         col1, col2, col3, col4 = st.columns(4)
 
@@ -531,21 +600,52 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             f"{vs_last_month_pct:+.1f}% vs Last Month" if last_month_revenue > 0 else None
         )
         col2.metric(
+            f"MTD Profit ({today.strftime('%b')})",
+            format_currency(mtd_profit_data['profit']),
+            f"{mtd_profit_vs_lm_pct:+.1f}% vs Last Month" if last_month_profit_data['profit'] > 0 else None,
+            delta_color="normal" if mtd_profit_vs_lm >= 0 else "inverse"
+        )
+        col3.metric(
+            "MTD Margin",
+            f"{mtd_profit_data['margin_pct']:.1f}%",
+            f"{mtd_profit_data['margin_pct'] - last_month_profit_data['margin_pct']:+.1f}pp" if last_month_profit_data['margin_pct'] > 0 else None
+        )
+        col4.metric(
             "MTD Orders",
             f"{mtd_orders:,}",
             f"{len(df_mtd) - len(df_last_month):+d} vs Last Month" if len(df_last_month) > 0 else None
         )
-        col3.metric(
+
+        # KPI Row 2 - YTD Revenue and Profitability
+        st.markdown("### Year to Date Performance")
+        col1, col2, col3, col4 = st.columns(4)
+
+        ytd_vs_lfl_pct = ((ytd_revenue / ytd_lfl_revenue - 1) * 100) if ytd_lfl_revenue > 0 else 0
+
+        col1.metric(
             "YTD Revenue",
-            format_currency(ytd_revenue)
+            format_currency(ytd_revenue),
+            f"{ytd_vs_lfl_pct:+.1f}% vs LFL" if ytd_lfl_revenue > 0 else None,
+            delta_color="normal" if ytd_revenue >= ytd_lfl_revenue else "inverse"
+        )
+        col2.metric(
+            "YTD Profit",
+            format_currency(ytd_profit_data['profit']),
+            f"{ytd_profit_vs_lfl_pct:+.1f}% vs LFL" if ytd_lfl_profit_data['profit'] > 0 else None,
+            delta_color="normal" if ytd_profit_vs_lfl >= 0 else "inverse"
+        )
+        col3.metric(
+            "YTD Margin",
+            f"{ytd_profit_data['margin_pct']:.1f}%",
+            f"{ytd_profit_data['margin_pct'] - ytd_lfl_profit_data['margin_pct']:+.1f}pp" if ytd_lfl_profit_data['margin_pct'] > 0 else None
         )
         col4.metric(
             "Unique Stores (All-Time)",
             df_all['Store'].nunique()
         )
 
-        # KPI Row 2 - Variances
-        st.markdown("### Variance Analysis")
+        # KPI Row 3 - Revenue Variances
+        st.markdown("### Revenue Variance Analysis")
         col1, col2, col3, col4 = st.columns(4)
 
         vs_lm_color = "normal" if vs_last_month >= 0 else "inverse"
@@ -569,9 +669,40 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             delta_color=vs_lfl_color
         )
         col4.metric(
-            f"LFL ({last_year_start.strftime('%b %Y')} 1-{last_year_same_day.day})",
+            f"LFL ({last_year_month_start.strftime('%b %Y')} 1-{last_year_same_day.day})",
             format_currency(lfl_revenue),
             f"{len(df_lfl)} orders"
+        )
+
+        # KPI Row 4 - Profitability Variances
+        st.markdown("### Profitability Variance Analysis")
+        st.caption("*Excludes Go Puff and On the Rocks orders*")
+        col1, col2, col3, col4 = st.columns(4)
+
+        profit_vs_lm_color = "normal" if mtd_profit_vs_lm >= 0 else "inverse"
+        profit_vs_lfl_color = "normal" if mtd_profit_vs_lfl >= 0 else "inverse"
+
+        col1.metric(
+            "Profit vs Last Month",
+            format_currency(mtd_profit_vs_lm),
+            f"{mtd_profit_vs_lm_pct:+.1f}%",
+            delta_color=profit_vs_lm_color
+        )
+        col2.metric(
+            f"Last Month Profit ({last_month_start.strftime('%b')} 1-{last_month_same_day.day})",
+            format_currency(last_month_profit_data['profit']),
+            f"{last_month_profit_data['margin_pct']:.1f}% margin"
+        )
+        col3.metric(
+            "Profit vs LFL",
+            format_currency(mtd_profit_vs_lfl),
+            f"{mtd_profit_vs_lfl_pct:+.1f}%",
+            delta_color=profit_vs_lfl_color
+        )
+        col4.metric(
+            f"LFL Profit ({last_year_month_start.strftime('%b %Y')} 1-{last_year_same_day.day})",
+            format_currency(lfl_profit_data['profit']),
+            f"{lfl_profit_data['margin_pct']:.1f}% margin"
         )
 
         # Monthly breakdown section - using filtered data
@@ -695,10 +826,6 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         st.caption("Excludes Go Puff and On the Rocks orders")
 
         # Filter out Go Puff and On the Rocks for profitability
-        def is_excluded_store(store_name):
-            store_lower = (store_name or '').lower()
-            return 'go puff' in store_lower or 'gopuff' in store_lower or 'on the rocks' in store_lower
-
         df_profit = df_all[~df_all['Store'].apply(is_excluded_store)].copy()
 
         if not df_profit.empty:
