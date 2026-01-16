@@ -132,7 +132,15 @@ def fetch_appstle_metrics() -> Optional[Dict]:
     Fetch Appstle subscription metrics with caching.
     Returns None if API key is not configured or request fails.
     """
-    api_key = os.environ.get("APPSTLE_API_KEY")
+    # Try st.secrets first (Streamlit Cloud), then fall back to env var
+    api_key = None
+    try:
+        api_key = st.secrets.get("APPSTLE_API_KEY")
+    except Exception:
+        pass
+
+    if not api_key:
+        api_key = os.environ.get("APPSTLE_API_KEY")
 
     if not api_key:
         return None
