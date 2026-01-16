@@ -39,7 +39,7 @@ RETAIL_COSTS = {
     'order_processing_fee': 1.09,
     'order_tracking_fee': 0.27,
     'case_labelling': 0.00,
-    'joe_commission_pct': 0.10,  # 10%
+    'sales_commission_per_unit': 0.10,  # £0.10 per unit
     'sku_case_cost': 0.10,
     'sleeve_x6': 0.67,
     'case_production_cost': 15.48,
@@ -140,13 +140,8 @@ def calculate_retail_profitability(revenue: float, num_cases: int, store_name: s
         # Regular retail: lookup table based on cases
         delivery_cost = get_delivery_cost(num_cases)
 
-    # Commission based on store type
-    if is_gopuff:
-        # Go Puff: £0.10 per unit
-        commission = num_units * GOPUFF_COMMISSION_PER_UNIT
-    else:
-        # Regular retail: 10% of revenue
-        commission = revenue * c['joe_commission_pct']
+    # Commission: £0.10 per unit for all retail
+    commission = num_units * c['sales_commission_per_unit']
 
     # Total costs
     total_costs = order_costs + case_costs + sleeve_cost + cogs + unit_costs + delivery_cost + commission
@@ -1001,7 +996,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
 | Order Tracking Fee | £{RETAIL_COSTS['order_tracking_fee']:.2f} |
 | SKU Case Cost | £{RETAIL_COSTS['sku_case_cost']:.2f} |
 | Sleeve x 6 | £{RETAIL_COSTS['sleeve_x6']:.2f} |
-| Joe Commission | {RETAIL_COSTS['joe_commission_pct']*100:.0f}% of revenue |
+| Sales Commission | £{RETAIL_COSTS['sales_commission_per_unit']:.2f} per unit |
 | Delivery | Lookup table by case count |
                     """)
                 with col2:
