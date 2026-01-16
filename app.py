@@ -552,8 +552,8 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             'ref': 'MANUAL-GP-001',
             'processed': datetime.now().strftime('%Y-%m-%d'),
             'num_items': 1,
-            'qty': 376,  # 376 cases (8 units per case = 3,008 units)
-            'total': 12784.00,
+            'qty': 301,  # 301 cases (8 units per case = 2,408 units)
+            'total': 10234.00,
             'skus': 'Various',
         }
         all_retail_orders.append(manual_order)
