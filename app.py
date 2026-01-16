@@ -74,32 +74,53 @@ def get_delivery_cost(num_cases: int) -> float:
     return 0.0
 
 
-def calculate_retail_profitability(revenue: float, num_cases: int, num_units: int, include_delivery: bool = True) -> dict:
+def calculate_retail_profitability(revenue: float, num_cases: int, store_name: str = '') -> dict:
     """
     Calculate retail order profitability based on cost assumptions.
 
     Args:
         revenue: Total order revenue
-        num_cases: Number of cases in order (typically = quantity for retail)
-        num_units: Number of individual units
-        include_delivery: Whether to include delivery cost (False for Go Puff/On the Rocks)
+        num_cases: Number of cases in order
+        store_name: Store name to determine delivery type and units per case
 
     Returns:
         Dict with cost breakdown and profit
     """
     c = RETAIL_COSTS
+    is_gopuff = is_gopuff_chilled(store_name)
+
+    # Determine units per case based on store type
+    if is_gopuff:
+        units_per_case = UNITS_PER_CASE_GOPUFF  # 8 units per case
+    else:
+        units_per_case = UNITS_PER_CASE_DEFAULT  # 6 units per case
+
+    num_units = num_cases * units_per_case
 
     # Per-order costs
     order_costs = c['order_processing_fee'] + c['order_tracking_fee']
 
-    # Per-case costs (excluding delivery which uses lookup)
-    case_costs = num_cases * (
-        c['freight_per_case'] +
-        c['case_picking_rate'] +
-        c['case_labelling'] +
-        c['sku_case_cost'] +
-        c['sleeve_x6']
-    )
+    # Per-case costs - Go Puff uses per-unit sleeve cost instead
+    if is_gopuff:
+        # Go Puff: sleeve is per unit, not per case
+        case_costs = num_cases * (
+            c['freight_per_case'] +
+            c['case_picking_rate'] +
+            c['case_labelling'] +
+            c['sku_case_cost']
+        )
+        # Add sleeve cost per unit for Go Puff
+        sleeve_cost = num_units * GOPUFF_SLEEVE_PER_UNIT
+    else:
+        # Regular retail: sleeve per case
+        case_costs = num_cases * (
+            c['freight_per_case'] +
+            c['case_picking_rate'] +
+            c['case_labelling'] +
+            c['sku_case_cost'] +
+            c['sleeve_x6']
+        )
+        sleeve_cost = 0  # Already included in case_costs
 
     # COGS (case production cost)
     cogs = num_cases * c['case_production_cost']
@@ -107,14 +128,27 @@ def calculate_retail_profitability(revenue: float, num_cases: int, num_units: in
     # Per-unit costs
     unit_costs = num_units * c['freight_per_unit']
 
-    # Delivery cost (from lookup table) - £0 for Go Puff and On the Rocks
-    delivery_cost = get_delivery_cost(num_cases) if include_delivery else 0.0
+    # Delivery cost based on store type
+    if is_gopuff:
+        # Go Puff (chilled): £0.18 per unit
+        delivery_cost = num_units * GOPUFF_DELIVERY_PER_UNIT
+    elif is_on_the_rocks(store_name):
+        # On the Rocks: no delivery fee
+        delivery_cost = 0.0
+    else:
+        # Regular retail: lookup table based on cases
+        delivery_cost = get_delivery_cost(num_cases)
 
-    # Commission
-    commission = revenue * c['joe_commission_pct']
+    # Commission based on store type
+    if is_gopuff:
+        # Go Puff: £0.10 per unit
+        commission = num_units * GOPUFF_COMMISSION_PER_UNIT
+    else:
+        # Regular retail: 10% of revenue
+        commission = revenue * c['joe_commission_pct']
 
     # Total costs
-    total_costs = order_costs + case_costs + cogs + unit_costs + delivery_cost + commission
+    total_costs = order_costs + case_costs + sleeve_cost + cogs + unit_costs + delivery_cost + commission
 
     # Profit
     profit = revenue - total_costs
@@ -124,8 +158,9 @@ def calculate_retail_profitability(revenue: float, num_cases: int, num_units: in
         'revenue': revenue,
         'cogs': cogs,
         'order_costs': order_costs,
-        'case_costs': case_costs,
+        'case_costs': case_costs + sleeve_cost,  # Include sleeve in case costs for display
         'unit_costs': unit_costs,
+        'num_units': num_units,
         'delivery_cost': delivery_cost,
         'commission': commission,
         'total_costs': total_costs,
@@ -451,10 +486,26 @@ def normalize_store_name(name: str) -> str:
     return normalized
 
 
-def is_no_delivery_store(store_name):
-    """Check if store should have no delivery fee (Go Puff, On the Rocks)."""
+def is_gopuff_chilled(store_name):
+    """Check if store is Go Puff (chilled) - special delivery pricing."""
     store_lower = (store_name or '').lower()
-    return 'go puff' in store_lower or 'gopuff' in store_lower or 'on the rocks' in store_lower
+    return 'go puff' in store_lower or 'gopuff' in store_lower
+
+
+def is_on_the_rocks(store_name):
+    """Check if store is On the Rocks - no delivery fee."""
+    store_lower = (store_name or '').lower()
+    return 'on the rocks' in store_lower
+
+
+# Units per case by store type
+UNITS_PER_CASE_DEFAULT = 6  # Regular retail stores
+UNITS_PER_CASE_GOPUFF = 8   # Go Puff (chilled)
+
+# Go Puff (chilled) specific costs - per unit
+GOPUFF_DELIVERY_PER_UNIT = 0.18
+GOPUFF_SLEEVE_PER_UNIT = 0.15
+GOPUFF_COMMISSION_PER_UNIT = 0.10
 
 
 def calculate_period_profitability(df_period):
@@ -468,12 +519,9 @@ def calculate_period_profitability(df_period):
     for _, row in df_period.iterrows():
         revenue = row['Total']
         num_cases = int(row['Qty'])
-        num_units = int(row['Qty'])
+        store_name = row['Store']
 
-        # Go Puff and On the Rocks get no delivery fee
-        no_delivery = is_no_delivery_store(row['Store'])
-
-        prof = calculate_retail_profitability(revenue, num_cases, num_units, include_delivery=not no_delivery)
+        prof = calculate_retail_profitability(revenue, num_cases, store_name)
         total_revenue += revenue
         total_profit += prof['profit']
 
@@ -503,7 +551,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             'ref': 'MANUAL-GP-001',
             'processed': datetime.now().strftime('%Y-%m-%d'),
             'num_items': 1,
-            'qty': 100,  # Estimated cases
+            'qty': 376,  # 376 cases (8 units per case = 3,008 units)
             'total': 12784.00,
             'skus': 'Various',
         }
@@ -848,20 +896,20 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             # Calculate profitability metrics
             profit_data = []
             for _, row in df_profit.iterrows():
-                # Go Puff and On the Rocks get no delivery fee
-                no_delivery = is_no_delivery_store(row['Store'])
+                store_name = row['Store']
+                num_cases = int(row['Cases'])
 
                 prof = calculate_retail_profitability(
                     revenue=row['Total'],
-                    num_cases=int(row['Cases']),
-                    num_units=int(row['Units']),
-                    include_delivery=not no_delivery
+                    num_cases=num_cases,
+                    store_name=store_name
                 )
                 profit_data.append({
-                    'Store': row['Store'],
+                    'Store': store_name,
                     'Date': row['Date'],
                     'Reference': row['Reference'],
-                    'Cases': int(row['Cases']),
+                    'Cases': num_cases,
+                    'Units': prof['num_units'],
                     'Revenue': prof['revenue'],
                     'COGS': prof['cogs'],
                     'Fulfillment': prof['order_costs'] + prof['case_costs'] + prof['unit_costs'],
@@ -893,6 +941,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             st.markdown("#### Profitability by Store")
             store_profit = df_profit_display.groupby('Store').agg({
                 'Cases': 'sum',
+                'Units': 'sum',
                 'Revenue': 'sum',
                 'COGS': 'sum',
                 'Fulfillment': 'sum',
@@ -910,6 +959,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
                 height=400,
                 column_config={
                     "Cases": st.column_config.NumberColumn(format="%d"),
+                    "Units": st.column_config.NumberColumn(format="%d"),
                     "Revenue": st.column_config.NumberColumn(format="£%.2f"),
                     "COGS": st.column_config.NumberColumn(format="£%.2f"),
                     "Fulfillment": st.column_config.NumberColumn(format="£%.2f"),
@@ -924,10 +974,11 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             with st.expander("📊 Profitability Assumptions"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("**Per-Case & Per-Order Costs**")
+                    st.markdown("**Standard Retail Costs**")
                     st.markdown(f"""
 | Cost Component | Value |
 |----------------|-------|
+| Units per Case | {UNITS_PER_CASE_DEFAULT} |
 | Case Production Cost (COGS) | £{RETAIL_COSTS['case_production_cost']:.2f} |
 | Freight Per Case | £{RETAIL_COSTS['freight_per_case']:.2f} |
 | Freight Per Unit | £{RETAIL_COSTS['freight_per_unit']:.2f} |
@@ -936,19 +987,34 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
 | Order Tracking Fee | £{RETAIL_COSTS['order_tracking_fee']:.2f} |
 | SKU Case Cost | £{RETAIL_COSTS['sku_case_cost']:.2f} |
 | Sleeve x 6 | £{RETAIL_COSTS['sleeve_x6']:.2f} |
-| Joe Commission | {RETAIL_COSTS['joe_commission_pct']*100:.0f}% |
+| Joe Commission | {RETAIL_COSTS['joe_commission_pct']*100:.0f}% of revenue |
+| Delivery | Lookup table by case count |
                     """)
                 with col2:
-                    st.markdown("**Delivery Costs (by case count)**")
-                    st.markdown("""
+                    st.markdown("**Go Puff (Chilled) Costs**")
+                    st.markdown(f"""
+| Cost Component | Value |
+|----------------|-------|
+| Units per Case | {UNITS_PER_CASE_GOPUFF} |
+| Delivery | £{GOPUFF_DELIVERY_PER_UNIT:.2f} per unit |
+| Sleeve | £{GOPUFF_SLEEVE_PER_UNIT:.2f} per unit |
+| Commission | £{GOPUFF_COMMISSION_PER_UNIT:.2f} per unit |
+| *Other costs same as standard* | |
+                    """)
+                    st.markdown("**On the Rocks**")
+                    st.markdown("- No delivery fee")
+                    st.markdown("- All other costs same as standard")
+
+                st.markdown("---")
+                st.markdown("**Delivery Costs for Standard Retail (by case count)**")
+                st.markdown("""
 | Cases | Cost | Cases | Cost |
 |-------|------|-------|------|
 | 1-6 | £24.00 | 21-25 | £57.75-68.75 |
 | 7-10 | £26.95-31.50 | 26-30 | £68.75-75.00 |
 | 11-15 | £34.65-47.25 | 31-40 | £77.50-94.00 |
 | 16-20 | £48.00-57.00 | 41-50 | £96.35-117.50 |
-                    """)
-                st.caption("*Go Puff and On the Rocks orders have no delivery fee applied*")
+                """)
 
         else:
             st.info("No orders available for profitability calculation.")
