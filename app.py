@@ -499,6 +499,19 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         # Also fetch date-filtered orders for monthly breakdown
         filtered_retail_orders = fetch_retail_order_details(date_min, date_max)
 
+        # Add manual order for Go Puff (chilled)
+        manual_order = {
+            'store': 'Go Puff (chilled)',
+            'ref': 'MANUAL-GP-001',
+            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'num_items': 1,
+            'qty': 100,  # Estimated cases
+            'total': 12784.00,
+            'skus': 'Various',
+        }
+        all_retail_orders.append(manual_order)
+        filtered_retail_orders.append(manual_order)
+
         if not all_retail_orders:
             st.info("No retail orders found.")
             return
