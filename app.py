@@ -1280,7 +1280,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 
         # Weekly breakdown
         st.markdown("---")
-        st.markdown("### By Calendar Week")
+        st.markdown("### 📅 Weekly Performance")
         st.caption(f"Selected period: {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')} | Filter: {day_filter}")
 
         df = create_orders_dataframe(filtered)
@@ -1291,25 +1291,56 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 "net_revenue": "sum",
                 "total_discounts": "sum",
                 "contribution": "sum",
+                "cogs": "sum",
             }).reset_index()
-            weekly_kpis.columns = ["Week", "Orders", "Revenue", "Discounts", "Profit"]
+            weekly_kpis.columns = ["Week", "Orders", "Revenue", "Discounts", "Profit", "COGS"]
+            weekly_kpis["Margin"] = (weekly_kpis["Profit"] / weekly_kpis["Revenue"] * 100).round(1)
+            weekly_kpis["AOV"] = (weekly_kpis["Revenue"] / weekly_kpis["Orders"]).round(2)
 
             num_weeks = len(weekly_kpis)
             if num_weeks > 0:
-                week_cols = st.columns(min(num_weeks, 6))
+                week_cols = st.columns(min(num_weeks, 4))
                 for idx, row in weekly_kpis.iterrows():
                     col_idx = idx % len(week_cols)
                     week_num = row['Week'].split('-W')[1] if '-W' in row['Week'] else row['Week']
                     date_range = get_week_date_range(row['Week'])
+                    margin_color = "#2E7D32" if row['Margin'] >= 30 else ("#F57C00" if row['Margin'] >= 20 else "#C62828")
                     with week_cols[col_idx]:
                         st.markdown(f"""
-                        <div style="background:{HC_WHITE}; padding:15px; border-radius:10px; border:2px solid {HC_DARK_TEAL}; text-align:center;">
-                            <div style="color:{HC_DARK_TEAL}; font-weight:bold; font-size:1.2em;">Week {week_num}</div>
-                            <div style="color:{HC_MEDIUM_TEAL}; font-size:0.85em; margin-bottom:8px;">({date_range})</div>
-                            <div style="color:#333333;">{row['Orders']:,} orders</div>
-                            <div style="color:#333333;">{format_currency(row['Revenue'])}</div>
-                            <div style="color:#666666; font-size:0.9em;">Discounts: {format_currency(row['Discounts'])}</div>
-                            <div style="color:{HC_DARK_TEAL}; font-weight:bold;">Profit: {format_currency(row['Profit'])}</div>
+                        <div style="background: linear-gradient(135deg, {HC_DARK_TEAL} 0%, #2a7a7b 100%);
+                                    padding:20px; border-radius:12px; text-align:center; margin-bottom:15px;
+                                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <div style="background:{HC_WHITE}; color:{HC_DARK_TEAL}; font-weight:bold; font-size:0.85em;
+                                        padding:4px 12px; border-radius:20px; display:inline-block; margin-bottom:10px;">
+                                WEEK {week_num}
+                            </div>
+                            <div style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin-bottom:12px;">{date_range}</div>
+
+                            <div style="color:{HC_WHITE}; font-size:1.8em; font-weight:bold; margin-bottom:5px;">
+                                {format_currency(row['Revenue'])}
+                            </div>
+                            <div style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin-bottom:15px;">REVENUE</div>
+
+                            <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); padding-top:12px;">
+                                <div style="text-align:center;">
+                                    <div style="color:{HC_WHITE}; font-size:1.1em; font-weight:bold;">{row['Orders']}</div>
+                                    <div style="color:{HC_LIGHT_MINT}; font-size:0.7em;">Orders</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="color:{HC_WHITE}; font-size:1.1em; font-weight:bold;">{format_currency(row['Profit'])}</div>
+                                    <div style="color:{HC_LIGHT_MINT}; font-size:0.7em;">Profit</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="color:{HC_WHITE}; font-size:1.1em; font-weight:bold;">{row['Margin']:.1f}%</div>
+                                    <div style="color:{HC_LIGHT_MINT}; font-size:0.7em;">Margin</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.2);">
+                                <div style="color:{HC_LIGHT_MINT}; font-size:0.75em;">
+                                    AOV: {format_currency(row['AOV'])} | Discounts: {format_currency(row['Discounts'])}
+                                </div>
+                            </div>
                         </div>
                         """, unsafe_allow_html=True)
 
