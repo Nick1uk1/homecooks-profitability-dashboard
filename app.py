@@ -1304,44 +1304,22 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                     col_idx = idx % len(week_cols)
                     week_num = row['Week'].split('-W')[1] if '-W' in row['Week'] else row['Week']
                     date_range = get_week_date_range(row['Week'])
-                    margin_color = "#2E7D32" if row['Margin'] >= 30 else ("#F57C00" if row['Margin'] >= 20 else "#C62828")
                     with week_cols[col_idx]:
                         st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, {HC_DARK_TEAL} 0%, #2a7a7b 100%);
-                                    padding:20px; border-radius:12px; text-align:center; margin-bottom:15px;
-                                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <div style="background:{HC_WHITE}; color:{HC_DARK_TEAL}; font-weight:bold; font-size:0.85em;
-                                        padding:4px 12px; border-radius:20px; display:inline-block; margin-bottom:10px;">
-                                WEEK {week_num}
-                            </div>
-                            <div style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin-bottom:12px;">{date_range}</div>
-
-                            <div style="color:{HC_WHITE}; font-size:1.8em; font-weight:bold; margin-bottom:5px;">
-                                {format_currency(row['Revenue'])}
-                            </div>
-                            <div style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin-bottom:15px;">REVENUE</div>
-
-                            <div style="display:flex; justify-content:space-around; border-top:1px solid rgba(255,255,255,0.2); padding-top:12px;">
-                                <div style="text-align:center;">
-                                    <div style="color:{HC_WHITE}; font-size:1.1em; font-weight:bold;">{row['Orders']}</div>
-                                    <div style="color:{HC_LIGHT_MINT}; font-size:0.7em;">Orders</div>
-                                </div>
-                                <div style="text-align:center;">
-                                    <div style="color:{HC_WHITE}; font-size:1.1em; font-weight:bold;">{format_currency(row['Profit'])}</div>
-                                    <div style="color:{HC_LIGHT_MINT}; font-size:0.7em;">Profit</div>
-                                </div>
-                                <div style="text-align:center;">
-                                    <div style="color:{HC_WHITE}; font-size:1.1em; font-weight:bold;">{row['Margin']:.1f}%</div>
-                                    <div style="color:{HC_LIGHT_MINT}; font-size:0.7em;">Margin</div>
-                                </div>
-                            </div>
-
-                            <div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.2);">
-                                <div style="color:{HC_LIGHT_MINT}; font-size:0.75em;">
-                                    AOV: {format_currency(row['AOV'])} | Discounts: {format_currency(row['Discounts'])}
-                                </div>
-                            </div>
-                        </div>
+<div style="background:{HC_DARK_TEAL}; padding:20px; border-radius:12px; text-align:center; margin-bottom:15px;">
+<span style="background:{HC_WHITE}; color:{HC_DARK_TEAL}; font-weight:bold; font-size:0.85em; padding:4px 12px; border-radius:20px;">WEEK {week_num}</span>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin:10px 0 15px 0;">{date_range}</p>
+<p style="color:{HC_WHITE}; font-size:1.8em; font-weight:bold; margin:0;">{format_currency(row['Revenue'])}</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin:0 0 15px 0;">REVENUE</p>
+<table style="width:100%; color:{HC_WHITE}; font-size:0.9em;">
+<tr>
+<td style="text-align:center;"><strong>{row['Orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
+<td style="text-align:center;"><strong>{format_currency(row['Profit'])}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Profit</span></td>
+<td style="text-align:center;"><strong>{row['Margin']:.1f}%</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Margin</span></td>
+</tr>
+</table>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin:15px 0 0 0; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">AOV: {format_currency(row['AOV'])} &nbsp;|&nbsp; Discounts: {format_currency(row['Discounts'])}</p>
+</div>
                         """, unsafe_allow_html=True)
 
         # Orders table
