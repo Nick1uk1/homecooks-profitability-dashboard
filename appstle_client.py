@@ -161,13 +161,21 @@ class AppstleClient:
         - All-time high active subscribers
         """
         # Get current calendar week boundaries (Sunday to Saturday)
-        today = datetime.now()
-        # Find the most recent Sunday (start of week)
-        days_since_sunday = today.weekday() + 1  # Monday=0, so Sunday was (weekday + 1) days ago
-        if days_since_sunday == 7:  # If today is Sunday
-            days_since_sunday = 0
-        week_start = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_since_sunday)
-        week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+        # Use date objects to avoid timezone confusion
+        today = date.today()
+
+        # Calculate days since Sunday (Sunday=0 for our week start)
+        # Python weekday: Monday=0, Sunday=6
+        # We want: Sunday=0, Monday=1, ..., Saturday=6
+        python_weekday = today.weekday()  # Monday=0, Sunday=6
+        days_since_sunday = (python_weekday + 1) % 7  # Sunday=0, Monday=1, ..., Saturday=6
+
+        week_start_date = today - timedelta(days=days_since_sunday)
+        week_end_date = week_start_date + timedelta(days=6)
+
+        # Convert to datetime for comparison (start of day to end of day)
+        week_start = datetime.combine(week_start_date, datetime.min.time())
+        week_end = datetime.combine(week_end_date, datetime.max.time())
 
         # Fetch all subscriptions
         all_subs = self.get_all_subscriptions()
@@ -176,11 +184,13 @@ class AppstleClient:
         active_subs = [s for s in all_subs if s.get('status', '').lower() == 'active']
         active_count = len(active_subs)
 
-        # Count new subscriptions this week (by createdAt)
+        # Count new subscriptions this week (by createdAt) - count from ALL subs created this week
         new_this_week = 0
-        for sub in active_subs:
+        for sub in all_subs:
             created_at = sub.get('createdAt')
-            if created_at:
+            status = sub.get('status', '').lower()
+            # Only count if currently active (new subscriber that stayed)
+            if created_at and status == 'active':
                 try:
                     created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00')).replace(tzinfo=None)
                     if week_start <= created_dt <= week_end:
@@ -207,8 +217,8 @@ class AppstleClient:
             'active_subscribers': active_count,
             'new_this_week': new_this_week,
             'cancelled_this_week': cancelled_this_week,
-            'week_start': week_start.strftime('%b %d'),
-            'week_end': week_end.strftime('%b %d'),
+            'week_start': week_start_date.strftime('%b %d'),
+            'week_end': week_end_date.strftime('%b %d'),
             'all_time_high': historical_high,
             'all_time_high_date': peak_date.strftime('%b %d, %Y') if peak_date else None,
         }
