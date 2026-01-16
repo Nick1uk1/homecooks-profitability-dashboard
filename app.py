@@ -956,16 +956,132 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         st.exception(e)
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> List[dict]:
+    """Fetch D2C orders from Linnworks for a specific period."""
+    store = os.environ.get("SHOPIFY_STORE_DOMAIN")
+    token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
+    version = os.environ.get("SHOPIFY_API_VERSION", "2024-07")
+
+    client = LinnworksClient()
+    if not client.authenticate():
+        return []
+
+    linnworks_orders = client.get_processed_orders(start_date, end_date)
+
+    # Filter out retail orders (No Shipping Required)
+    d2c_orders = [o for o in linnworks_orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()]
+
+    if not d2c_orders:
+        return []
+
+    # Get dispatch info
+    dispatch_info = get_dispatch_info(d2c_orders)
+
+    # Extract Shopify order IDs
+    shopify_order_ids = set()
+    for order in d2c_orders:
+        ref = order.get('ReferenceNum', '').replace('#', '').strip()
+        if ref:
+            try:
+                shopify_order_ids.add(int(ref))
+            except ValueError:
+                pass
+
+    if not shopify_order_ids:
+        return []
+
+    # Fetch Shopify orders
+    shopify_client = ShopifyClient(store, token, version)
+    shopify_orders = fetch_shopify_orders_by_ids(store, token, version, tuple(sorted(shopify_order_ids)))
+
+    if not shopify_orders:
+        return []
+
+    # Process orders
+    costing = CostingService(shopify_client)
+    processed, _, _ = process_orders(shopify_orders, costing, dispatch_info, lambda *args: None)
+
+    return processed
+
+
+def calculate_d2c_period_metrics(orders: List) -> dict:
+    """Calculate D2C metrics for a period."""
+    if not orders:
+        return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0, 'cogs': 0, 'discounts': 0}
+
+    total_revenue = sum(o.net_revenue for o in orders)
+    total_profit = sum(o.contribution for o in orders)
+    total_cogs = sum(o.cogs for o in orders)
+    total_discounts = sum(o.total_discounts for o in orders)
+    margin_pct = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+
+    return {
+        'revenue': total_revenue,
+        'profit': total_profit,
+        'margin_pct': margin_pct,
+        'orders': len(orders),
+        'cogs': total_cogs,
+        'discounts': total_discounts,
+    }
+
+
 def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, inc_mon, inc_thu, inc_all):
     """Render the D2C dashboard content - orders by DISPATCH date from Linnworks."""
     try:
+        import calendar
+
         store = os.environ.get("SHOPIFY_STORE_DOMAIN")
         token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
         version = os.environ.get("SHOPIFY_API_VERSION", "2024-07")
 
-        # Step 1: Fetch Linnworks orders by DISPATCH date (processed date)
-        with st.spinner("Loading dispatch data from Linnworks..."):
+        # Calculate date ranges for MTD, YTD, Last Month, LFL
+        today = datetime.now()
+        current_month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        current_year_start = today.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Last month same period
+        if today.month == 1:
+            last_month_start = today.replace(year=today.year-1, month=12, day=1, hour=0, minute=0, second=0, microsecond=0)
+            last_month_same_day = today.replace(year=today.year-1, month=12, day=min(today.day, 31))
+        else:
+            last_month_start = today.replace(month=today.month-1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            last_month_days = calendar.monthrange(today.year, today.month-1)[1]
+            last_month_same_day = today.replace(month=today.month-1, day=min(today.day, last_month_days))
+
+        # Last year same period (LFL)
+        last_year_month_start = today.replace(year=today.year-1, month=today.month, day=1, hour=0, minute=0, second=0, microsecond=0)
+        try:
+            last_year_same_day = today.replace(year=today.year-1)
+        except ValueError:
+            last_year_same_day = today.replace(year=today.year-1, day=28)
+
+        # YTD last year
+        last_year_ytd_start = current_year_start.replace(year=today.year-1)
+        try:
+            last_year_ytd_end = today.replace(year=today.year-1)
+        except ValueError:
+            last_year_ytd_end = today.replace(year=today.year-1, day=28)
+
+        # Fetch orders for all periods
+        with st.spinner("Loading D2C orders from Linnworks..."):
+            # Current period (selected dates)
             linnworks_orders = fetch_linnworks_orders(date_min, date_max)
+
+            # MTD orders
+            mtd_orders = fetch_d2c_orders_for_period(current_month_start, today)
+
+            # YTD orders
+            ytd_orders = fetch_d2c_orders_for_period(current_year_start, today)
+
+            # Last month same period
+            last_month_orders = fetch_d2c_orders_for_period(last_month_start, last_month_same_day)
+
+            # LFL (same month last year)
+            lfl_orders = fetch_d2c_orders_for_period(last_year_month_start, last_year_same_day)
+
+            # YTD LFL
+            ytd_lfl_orders = fetch_d2c_orders_for_period(last_year_ytd_start, last_year_ytd_end)
 
         if not linnworks_orders:
             st.warning("No dispatched orders found for selected date range in Linnworks.")
@@ -978,7 +1094,144 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             st.warning("No D2C orders found for selected date range (all were retail).")
             return
 
-        # Step 2: Extract Shopify order IDs from Linnworks reference numbers
+        # Calculate metrics for each period
+        mtd_metrics = calculate_d2c_period_metrics(mtd_orders)
+        ytd_metrics = calculate_d2c_period_metrics(ytd_orders)
+        last_month_metrics = calculate_d2c_period_metrics(last_month_orders)
+        lfl_metrics = calculate_d2c_period_metrics(lfl_orders)
+        ytd_lfl_metrics = calculate_d2c_period_metrics(ytd_lfl_orders)
+
+        # Calculate variances
+        vs_last_month_rev = mtd_metrics['revenue'] - last_month_metrics['revenue']
+        vs_last_month_rev_pct = ((mtd_metrics['revenue'] / last_month_metrics['revenue'] - 1) * 100) if last_month_metrics['revenue'] > 0 else 0
+        vs_lfl_rev = mtd_metrics['revenue'] - lfl_metrics['revenue']
+        vs_lfl_rev_pct = ((mtd_metrics['revenue'] / lfl_metrics['revenue'] - 1) * 100) if lfl_metrics['revenue'] > 0 else 0
+
+        vs_last_month_profit = mtd_metrics['profit'] - last_month_metrics['profit']
+        vs_last_month_profit_pct = ((mtd_metrics['profit'] / last_month_metrics['profit'] - 1) * 100) if last_month_metrics['profit'] > 0 else 0
+        vs_lfl_profit = mtd_metrics['profit'] - lfl_metrics['profit']
+        vs_lfl_profit_pct = ((mtd_metrics['profit'] / lfl_metrics['profit'] - 1) * 100) if lfl_metrics['profit'] > 0 else 0
+
+        ytd_vs_lfl_rev_pct = ((ytd_metrics['revenue'] / ytd_lfl_metrics['revenue'] - 1) * 100) if ytd_lfl_metrics['revenue'] > 0 else 0
+        ytd_vs_lfl_profit = ytd_metrics['profit'] - ytd_lfl_metrics['profit']
+        ytd_vs_lfl_profit_pct = ((ytd_metrics['profit'] / ytd_lfl_metrics['profit'] - 1) * 100) if ytd_lfl_metrics['profit'] > 0 else 0
+
+        # Status bar
+        st.markdown(f"""
+        <div class="status-bar">
+            <strong>D2C Orders</strong> |
+            Selected period ({date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}): {len(d2c_linnworks)} orders |
+            Dispatch filter: {day_filter}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # KPI Row 1 - MTD Revenue and Profitability
+        st.markdown("### Month to Date Performance")
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            f"MTD Revenue ({today.strftime('%b')})",
+            format_currency(mtd_metrics['revenue']),
+            f"{vs_last_month_rev_pct:+.1f}% vs Last Month" if last_month_metrics['revenue'] > 0 else None
+        )
+        col2.metric(
+            f"MTD Profit ({today.strftime('%b')})",
+            format_currency(mtd_metrics['profit']),
+            f"{vs_last_month_profit_pct:+.1f}% vs Last Month" if last_month_metrics['profit'] > 0 else None,
+            delta_color="normal" if vs_last_month_profit >= 0 else "inverse"
+        )
+        col3.metric(
+            "MTD Margin",
+            f"{mtd_metrics['margin_pct']:.1f}%",
+            f"{mtd_metrics['margin_pct'] - last_month_metrics['margin_pct']:+.1f}pp" if last_month_metrics['margin_pct'] > 0 else None
+        )
+        col4.metric(
+            "MTD Orders",
+            f"{mtd_metrics['orders']:,}",
+            f"{mtd_metrics['orders'] - last_month_metrics['orders']:+d} vs Last Month" if last_month_metrics['orders'] > 0 else None
+        )
+
+        # KPI Row 2 - YTD Revenue and Profitability
+        st.markdown("### Year to Date Performance")
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "YTD Revenue",
+            format_currency(ytd_metrics['revenue']),
+            f"{ytd_vs_lfl_rev_pct:+.1f}% vs LFL" if ytd_lfl_metrics['revenue'] > 0 else None,
+            delta_color="normal" if ytd_metrics['revenue'] >= ytd_lfl_metrics['revenue'] else "inverse"
+        )
+        col2.metric(
+            "YTD Profit",
+            format_currency(ytd_metrics['profit']),
+            f"{ytd_vs_lfl_profit_pct:+.1f}% vs LFL" if ytd_lfl_metrics['profit'] > 0 else None,
+            delta_color="normal" if ytd_vs_lfl_profit >= 0 else "inverse"
+        )
+        col3.metric(
+            "YTD Margin",
+            f"{ytd_metrics['margin_pct']:.1f}%",
+            f"{ytd_metrics['margin_pct'] - ytd_lfl_metrics['margin_pct']:+.1f}pp" if ytd_lfl_metrics['margin_pct'] > 0 else None
+        )
+        col4.metric(
+            "YTD Orders",
+            f"{ytd_metrics['orders']:,}"
+        )
+
+        # KPI Row 3 - Revenue Variances
+        st.markdown("### Revenue Variance Analysis")
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "vs Last Month (Same Period)",
+            format_currency(vs_last_month_rev),
+            f"{vs_last_month_rev_pct:+.1f}%",
+            delta_color="normal" if vs_last_month_rev >= 0 else "inverse"
+        )
+        col2.metric(
+            f"Last Month ({last_month_start.strftime('%b')} 1-{last_month_same_day.day})",
+            format_currency(last_month_metrics['revenue']),
+            f"{last_month_metrics['orders']} orders"
+        )
+        col3.metric(
+            "vs LFL (Same Period Last Year)",
+            format_currency(vs_lfl_rev),
+            f"{vs_lfl_rev_pct:+.1f}%",
+            delta_color="normal" if vs_lfl_rev >= 0 else "inverse"
+        )
+        col4.metric(
+            f"LFL ({last_year_month_start.strftime('%b %Y')} 1-{last_year_same_day.day})",
+            format_currency(lfl_metrics['revenue']),
+            f"{lfl_metrics['orders']} orders"
+        )
+
+        # KPI Row 4 - Profitability Variances
+        st.markdown("### Profitability Variance Analysis")
+        col1, col2, col3, col4 = st.columns(4)
+
+        col1.metric(
+            "Profit vs Last Month",
+            format_currency(vs_last_month_profit),
+            f"{vs_last_month_profit_pct:+.1f}%",
+            delta_color="normal" if vs_last_month_profit >= 0 else "inverse"
+        )
+        col2.metric(
+            f"Last Month Profit ({last_month_start.strftime('%b')} 1-{last_month_same_day.day})",
+            format_currency(last_month_metrics['profit']),
+            f"{last_month_metrics['margin_pct']:.1f}% margin"
+        )
+        col3.metric(
+            "Profit vs LFL",
+            format_currency(vs_lfl_profit),
+            f"{vs_lfl_profit_pct:+.1f}%",
+            delta_color="normal" if vs_lfl_profit >= 0 else "inverse"
+        )
+        col4.metric(
+            f"LFL Profit ({last_year_month_start.strftime('%b %Y')} 1-{last_year_same_day.day})",
+            format_currency(lfl_metrics['profit']),
+            f"{lfl_metrics['margin_pct']:.1f}% margin"
+        )
+
+        # Process selected date range for detailed view
         dispatch_info = get_dispatch_info(d2c_linnworks)
 
         shopify_order_ids = set()
@@ -988,13 +1241,12 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 try:
                     shopify_order_ids.add(int(ref))
                 except ValueError:
-                    pass  # Non-numeric reference
+                    pass
 
         if not shopify_order_ids:
             st.warning("Could not extract Shopify order IDs from Linnworks data.")
             return
 
-        # Step 3: Fetch those specific Shopify orders for COGS/profitability data
         with st.spinner(f"Loading {len(shopify_order_ids)} orders from Shopify..."):
             shopify_orders = fetch_shopify_orders_by_ids(store, token, version, tuple(sorted(shopify_order_ids)))
 
@@ -1021,33 +1273,15 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             processed = st.session_state[cache_key]
 
         filtered = filter_by_weekday(processed, inc_mon, inc_thu, inc_all)
-        stats = st.session_state.get(f"{cache_key}_stats", {})
-
-        # Status bar
-        linnworks_count = stats.get('linnworks', len(d2c_linnworks))
-        st.markdown(f"""
-        <div class="status-bar">
-            <strong>Showing {len(filtered)} orders</strong> dispatched on {day_filter} |
-            Dispatch dates: {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')} |
-            Linnworks D2C: {linnworks_count} | Shopify matched: {len(shopify_orders)}
-        </div>
-        """, unsafe_allow_html=True)
 
         if not filtered:
             st.info("No orders match the current filters.")
             return
 
-        # KPI tiles
-        kpis = calculate_kpis(filtered)
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total Orders", f"{kpis['total_orders']:,}")
-        col2.metric("Revenue", format_currency(kpis['net_revenue']))
-        col3.metric("Discounts", format_currency(kpis['total_discounts']))
-        col4.metric("Profit", format_currency(kpis['total_contribution']))
-
         # Weekly breakdown
         st.markdown("---")
         st.markdown("### By Calendar Week")
+        st.caption(f"Selected period: {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')} | Filter: {day_filter}")
 
         df = create_orders_dataframe(filtered)
 
@@ -1078,19 +1312,6 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                             <div style="color:{HC_DARK_TEAL}; font-weight:bold;">Profit: {format_currency(row['Profit'])}</div>
                         </div>
                         """, unsafe_allow_html=True)
-
-        # Profitability assumptions
-        st.markdown(f"""
-        <div class="assumptions-box">
-            <h4>Profitability Calculation</h4>
-            <table style="width:100%; font-size:0.9em;">
-                <tr><td><strong>Revenue</strong></td><td>= Gross Item Value - Discounts</td></tr>
-                <tr><td><strong>COGS</strong></td><td>= Sum of Shopify InventoryItem.cost per variant</td></tr>
-                <tr><td><strong>Packaging</strong></td><td>= Small (£12.66) if &lt;10 SKUs, Large (£13.81) if 10-16, 2x Large (£27.62) if &gt;16</td></tr>
-                <tr><td><strong>Profit</strong></td><td>= Revenue - COGS - Packaging</td></tr>
-            </table>
-        </div>
-        """, unsafe_allow_html=True)
 
         # Orders table
         st.markdown("---")
@@ -1133,26 +1354,28 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             },
         )
 
-        # Packaging breakdown
-        with st.expander("Packaging Cost Breakdown"):
-            st.markdown("""
-            | SKU Count | Box Type | Cost |
-            |-----------|----------|------|
-            | < 10 | Small | £12.66 |
-            | 10-16 | Large | £13.81 |
-            | > 16 | 2x Large | £27.62 |
-            """)
-
-            small = PACKAGING_COSTS["small"]
-            large = PACKAGING_COSTS["large"]
-            totals = get_packaging_totals()
-
-            cost_df = pd.DataFrame({
-                "Component": list(small.keys()) + ["TOTAL"],
-                "Small": [f"£{v:.2f}" for v in small.values()] + [f"£{totals['small']:.2f}"],
-                "Large": [f"£{v:.2f}" for v in large.values()] + [f"£{totals['large']:.2f}"],
-            })
-            st.dataframe(cost_df, hide_index=True)
+        # Profitability assumptions in expander
+        with st.expander("📊 Profitability Assumptions"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Profitability Calculation**")
+                st.markdown("""
+| Component | Calculation |
+|-----------|-------------|
+| Revenue | Gross Item Value - Discounts |
+| COGS | Shopify InventoryItem.cost per variant |
+| Packaging | Based on SKU count (see below) |
+| Profit | Revenue - COGS - Packaging |
+                """)
+            with col2:
+                st.markdown("**Packaging Costs**")
+                st.markdown("""
+| SKU Count | Box Type | Cost |
+|-----------|----------|------|
+| < 10 | Small | £12.66 |
+| 10-16 | Large | £13.81 |
+| > 16 | 2x Large | £27.62 |
+                """)
 
     except Exception as e:
         st.error(f"Error loading data: {e}")
