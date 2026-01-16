@@ -559,6 +559,19 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         all_retail_orders.append(manual_order)
         filtered_retail_orders.append(manual_order)
 
+        # Add second manual order for Go Puff (chilled)
+        manual_order_2 = {
+            'store': 'Go Puff (chilled)',
+            'ref': 'MANUAL-GP-002',
+            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'num_items': 1,
+            'qty': 376,  # 376 cases (8 units per case = 3,008 units)
+            'total': 12784.00,
+            'skus': 'Various',
+        }
+        all_retail_orders.append(manual_order_2)
+        filtered_retail_orders.append(manual_order_2)
+
         if not all_retail_orders:
             st.info("No retail orders found.")
             return
