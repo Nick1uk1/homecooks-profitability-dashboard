@@ -768,7 +768,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             'Date': 'max'
         }).reset_index()
         store_summary.columns = ['Store', 'Orders', 'Revenue', 'Units', 'Last Order']
-        store_summary = store_summary.sort_values('Revenue', ascending=False)
+        store_summary = store_summary.sort_values('Last Order', ascending=False)
 
         # Format last order date
         store_summary['Last Order'] = store_summary['Last Order'].dt.strftime('%d/%m/%Y')
