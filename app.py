@@ -1476,27 +1476,54 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         )
 
         # Profitability assumptions in expander
-        with st.expander("📊 Profitability Assumptions"):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Profitability Calculation**")
-                st.markdown("""
+        with st.expander("📊 Profitability Assumptions", expanded=True):
+            st.markdown("**Profitability Calculation**")
+            st.markdown("""
 | Component | Calculation |
 |-----------|-------------|
 | Revenue | Gross Item Value - Discounts |
 | COGS | Shopify InventoryItem.cost per variant |
 | Packaging | Based on SKU count (see below) |
 | Profit | Revenue - COGS - Packaging |
+            """)
+
+            st.markdown("---")
+            st.markdown("**Packaging Cost Breakdown**")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                small_costs = PACKAGING_COSTS["small"]
+                small_total = sum(small_costs.values())
+                st.markdown(f"""
+**Small Box** (< 10 SKUs)
+
+| Component | Cost |
+|-----------|------|
+| Box | £{small_costs['Box']:.2f} |
+| Wool | £{small_costs['Wool']:.2f} |
+| Coolant | £{small_costs['Coolant']:.2f} |
+| Shipping | £{small_costs['Shipping']:.2f} |
+| Pick & Pack | £{small_costs['Pick & Pack']:.2f} |
+| **Total** | **£{small_total:.2f}** |
                 """)
+
             with col2:
-                st.markdown("**Packaging Costs**")
-                st.markdown("""
-| SKU Count | Box Type | Cost |
-|-----------|----------|------|
-| < 10 | Small | £12.66 |
-| 10-16 | Large | £13.81 |
-| > 16 | 2x Large | £27.62 |
+                large_costs = PACKAGING_COSTS["large"]
+                large_total = sum(large_costs.values())
+                st.markdown(f"""
+**Large Box** (10-16 SKUs)
+
+| Component | Cost |
+|-----------|------|
+| Box | £{large_costs['Box']:.2f} |
+| Wool | £{large_costs['Wool']:.2f} |
+| Coolant | £{large_costs['Coolant']:.2f} |
+| Shipping | £{large_costs['Shipping']:.2f} |
+| Pick & Pack | £{large_costs['Pick & Pack']:.2f} |
+| **Total** | **£{large_total:.2f}** |
                 """)
+
+            st.markdown(f"*Orders with >16 SKUs use 2x Large boxes = £{large_total * 2:.2f}*")
 
     except Exception as e:
         st.error(f"Error loading data: {e}")
