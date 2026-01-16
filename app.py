@@ -21,6 +21,7 @@ from metrics import (
     calculate_kpis,
     OrderMetrics,
 )
+from appstle_client import fetch_appstle_metrics, update_all_time_high
 
 
 # HomeCooks Brand Colors
@@ -1298,6 +1299,40 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             format_currency(lfl_metrics['profit']),
             f"{lfl_metrics['margin_pct']:.1f}% margin"
         )
+
+        # Appstle Subscription Metrics
+        appstle_metrics = fetch_appstle_metrics()
+        if appstle_metrics:
+            st.markdown("### Subscription Metrics")
+
+            active_count = appstle_metrics['active_subscribers']
+            new_week = appstle_metrics['new_this_week']
+            cancelled_week = appstle_metrics['cancelled_this_week']
+            week_range = f"{appstle_metrics['week_start']} - {appstle_metrics['week_end']}"
+
+            # Check if this is an all-time high
+            is_all_time_high = update_all_time_high(active_count)
+            trophy = " 🏆" if is_all_time_high else ""
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric(
+                f"Active Subscribers{trophy}",
+                f"{active_count:,}",
+                "All-time high!" if is_all_time_high else None,
+                delta_color="normal"
+            )
+            col2.metric(
+                "New This Week",
+                f"{new_week:,}",
+                f"Week of {week_range}"
+            )
+            col3.metric(
+                "Cancelled This Week",
+                f"{cancelled_week:,}",
+                f"Week of {week_range}",
+                delta_color="inverse" if cancelled_week > 0 else "off"
+            )
 
         # Process selected date range for detailed view
         dispatch_info = get_dispatch_info(d2c_linnworks)
