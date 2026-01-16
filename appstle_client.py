@@ -160,17 +160,15 @@ class AppstleClient:
         - Cancelled this calendar week
         - All-time high active subscribers
         """
-        # Get current calendar week boundaries (Sunday to Saturday)
+        # Get current calendar week boundaries (Monday to Sunday)
         # Use date objects to avoid timezone confusion
         today = date.today()
 
-        # Calculate days since Sunday (Sunday=0 for our week start)
-        # Python weekday: Monday=0, Sunday=6
-        # We want: Sunday=0, Monday=1, ..., Saturday=6
-        python_weekday = today.weekday()  # Monday=0, Sunday=6
-        days_since_sunday = (python_weekday + 1) % 7  # Sunday=0, Monday=1, ..., Saturday=6
+        # Calculate days since Monday (Monday=0 for our week start)
+        # Python weekday: Monday=0, Tuesday=1, ..., Sunday=6
+        days_since_monday = today.weekday()  # Monday=0, Sunday=6
 
-        week_start_date = today - timedelta(days=days_since_sunday)
+        week_start_date = today - timedelta(days=days_since_monday)
         week_end_date = week_start_date + timedelta(days=6)
 
         # Convert to datetime for comparison (start of day to end of day)
