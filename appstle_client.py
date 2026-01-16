@@ -5,7 +5,7 @@ Fetches subscription metrics for the D2C dashboard
 
 import os
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Dict, List, Optional
 import streamlit as st
 
@@ -71,6 +71,87 @@ class AppstleClient:
 
         return all_subscriptions
 
+    def get_paused_subscriptions(self, page_size: int = 500) -> List[Dict]:
+        """Fetch all paused subscriptions."""
+        all_subscriptions = []
+        page = 0
+
+        while True:
+            response = self.session.get(
+                f"{self.BASE_URL}/api/external/v2/subscription-contract-details",
+                params={'status': 'PAUSED', 'size': page_size, 'page': page},
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if not data:
+                break
+
+            all_subscriptions.extend(data)
+
+            if len(data) < page_size:
+                break
+            page += 1
+
+        return all_subscriptions
+
+    def get_all_subscriptions(self) -> List[Dict]:
+        """Fetch all subscriptions (active, cancelled, paused)."""
+        all_subs = []
+        all_subs.extend(self.get_active_subscriptions())
+        all_subs.extend(self.get_cancelled_subscriptions())
+        all_subs.extend(self.get_paused_subscriptions())
+        return all_subs
+
+    def calculate_historical_high(self, all_subs: List[Dict]) -> tuple:
+        """
+        Calculate the all-time high subscriber count from historical data.
+        Returns (peak_count, peak_date).
+        """
+        # Build events list: (date, +1 for created, -1 for cancelled)
+        events = []
+
+        for sub in all_subs:
+            created = sub.get('createdAt')
+            cancelled = sub.get('cancelledOn')
+
+            if created:
+                try:
+                    created_dt = datetime.fromisoformat(created.replace('Z', '+00:00')).replace(tzinfo=None)
+                    events.append((created_dt.date(), 1))
+                except (ValueError, TypeError):
+                    pass
+
+            if cancelled:
+                try:
+                    cancelled_dt = datetime.fromisoformat(cancelled.replace('Z', '+00:00')).replace(tzinfo=None)
+                    events.append((cancelled_dt.date(), -1))
+                except (ValueError, TypeError):
+                    pass
+
+        if not events:
+            return (0, None)
+
+        # Sort by date
+        events.sort(key=lambda x: x[0])
+
+        # Calculate running total and find peak
+        running_total = 0
+        peak_count = 0
+        peak_date = None
+        daily_counts = {}
+
+        for event_date, change in events:
+            running_total += change
+            daily_counts[event_date] = running_total
+
+            if running_total > peak_count:
+                peak_count = running_total
+                peak_date = event_date
+
+        return (peak_count, peak_date)
+
     def get_subscription_metrics(self) -> Dict:
         """
         Get subscription metrics including:
@@ -88,8 +169,11 @@ class AppstleClient:
         week_start = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_since_sunday)
         week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
 
-        # Fetch active subscriptions
-        active_subs = self.get_active_subscriptions()
+        # Fetch all subscriptions
+        all_subs = self.get_all_subscriptions()
+
+        # Count active subscriptions
+        active_subs = [s for s in all_subs if s.get('status', '').lower() == 'active']
         active_count = len(active_subs)
 
         # Count new subscriptions this week (by createdAt)
@@ -104,10 +188,9 @@ class AppstleClient:
                 except (ValueError, TypeError):
                     pass
 
-        # Fetch cancelled subscriptions and count this week
-        cancelled_subs = self.get_cancelled_subscriptions()
+        # Count cancellations this week
         cancelled_this_week = 0
-        for sub in cancelled_subs:
+        for sub in all_subs:
             cancelled_on = sub.get('cancelledOn')
             if cancelled_on:
                 try:
@@ -117,12 +200,17 @@ class AppstleClient:
                 except (ValueError, TypeError):
                     pass
 
+        # Calculate historical all-time high
+        historical_high, peak_date = self.calculate_historical_high(all_subs)
+
         return {
             'active_subscribers': active_count,
             'new_this_week': new_this_week,
             'cancelled_this_week': cancelled_this_week,
             'week_start': week_start.strftime('%b %d'),
             'week_end': week_end.strftime('%b %d'),
+            'all_time_high': historical_high,
+            'all_time_high_date': peak_date.strftime('%b %d, %Y') if peak_date else None,
         }
 
 
@@ -156,25 +244,9 @@ def fetch_appstle_metrics() -> Optional[Dict]:
         return None
 
 
-def get_all_time_high_subscribers() -> int:
+def is_all_time_high(current_count: int, historical_high: int) -> bool:
     """
-    Get the all-time high number of active subscribers.
-    Stored in Streamlit session state to persist across refreshes.
+    Check if current count is a new all-time high.
+    Returns True only if current count exceeds the historical high.
     """
-    if 'appstle_all_time_high' not in st.session_state:
-        st.session_state.appstle_all_time_high = 0
-    return st.session_state.appstle_all_time_high
-
-
-def update_all_time_high(current_count: int) -> bool:
-    """
-    Update the all-time high if current count exceeds it.
-    Returns True if this is a new all-time high.
-    """
-    if 'appstle_all_time_high' not in st.session_state:
-        st.session_state.appstle_all_time_high = 0
-
-    if current_count > st.session_state.appstle_all_time_high:
-        st.session_state.appstle_all_time_high = current_count
-        return True
-    return False
+    return current_count > historical_high

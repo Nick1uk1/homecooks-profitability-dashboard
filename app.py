@@ -21,7 +21,7 @@ from metrics import (
     calculate_kpis,
     OrderMetrics,
 )
-from appstle_client import fetch_appstle_metrics, update_all_time_high
+from appstle_client import fetch_appstle_metrics, is_all_time_high
 
 
 # HomeCooks Brand Colors
@@ -1323,16 +1323,17 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             cancelled_week = appstle_metrics['cancelled_this_week']
             week_range = f"{appstle_metrics['week_start']} - {appstle_metrics['week_end']}"
 
-            # Check if this is an all-time high
-            is_all_time_high = update_all_time_high(active_count)
-            trophy = " 🏆" if is_all_time_high else ""
+            # Check if this is an all-time high (exceeds historical peak)
+            historical_high = appstle_metrics.get('all_time_high', 0)
+            at_all_time_high = is_all_time_high(active_count, historical_high)
+            trophy = " 🏆" if at_all_time_high else ""
 
             col1, col2, col3 = st.columns(3)
 
             col1.metric(
                 f"Active Subscribers{trophy}",
                 f"{active_count:,}",
-                "All-time high!" if is_all_time_high else None,
+                "All-time high!" if at_all_time_high else None,
                 delta_color="normal"
             )
             col2.metric(
