@@ -1476,7 +1476,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         )
 
         # Profitability assumptions in expander
-        with st.expander("📊 Profitability Assumptions", expanded=True):
+        with st.expander("📊 Profitability Assumptions"):
             st.markdown("**Profitability Calculation**")
             st.markdown("""
 | Component | Calculation |
