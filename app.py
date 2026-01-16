@@ -74,7 +74,7 @@ def get_delivery_cost(num_cases: int) -> float:
     return 0.0
 
 
-def calculate_retail_profitability(revenue: float, num_cases: int, num_units: int) -> dict:
+def calculate_retail_profitability(revenue: float, num_cases: int, num_units: int, include_delivery: bool = True) -> dict:
     """
     Calculate retail order profitability based on cost assumptions.
 
@@ -82,6 +82,7 @@ def calculate_retail_profitability(revenue: float, num_cases: int, num_units: in
         revenue: Total order revenue
         num_cases: Number of cases in order (typically = quantity for retail)
         num_units: Number of individual units
+        include_delivery: Whether to include delivery cost (False for Go Puff/On the Rocks)
 
     Returns:
         Dict with cost breakdown and profit
@@ -106,8 +107,8 @@ def calculate_retail_profitability(revenue: float, num_cases: int, num_units: in
     # Per-unit costs
     unit_costs = num_units * c['freight_per_unit']
 
-    # Delivery cost (from lookup table)
-    delivery_cost = get_delivery_cost(num_cases)
+    # Delivery cost (from lookup table) - £0 for Go Puff and On the Rocks
+    delivery_cost = get_delivery_cost(num_cases) if include_delivery else 0.0
 
     # Commission
     commission = revenue * c['joe_commission_pct']
@@ -450,32 +451,29 @@ def normalize_store_name(name: str) -> str:
     return normalized
 
 
-def is_excluded_store(store_name):
-    """Check if store should be excluded from profitability calculations."""
+def is_no_delivery_store(store_name):
+    """Check if store should have no delivery fee (Go Puff, On the Rocks)."""
     store_lower = (store_name or '').lower()
     return 'go puff' in store_lower or 'gopuff' in store_lower or 'on the rocks' in store_lower
 
 
 def calculate_period_profitability(df_period):
-    """Calculate total profitability for a period's orders (excluding Go Puff/On the Rocks)."""
+    """Calculate total profitability for a period's orders."""
     if df_period.empty:
-        return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0}
-
-    # Filter out excluded stores
-    df_eligible = df_period[~df_period['Store'].apply(is_excluded_store)]
-
-    if df_eligible.empty:
         return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0}
 
     total_revenue = 0
     total_profit = 0
 
-    for _, row in df_eligible.iterrows():
+    for _, row in df_period.iterrows():
         revenue = row['Total']
         num_cases = int(row['Qty'])
         num_units = int(row['Qty'])
 
-        prof = calculate_retail_profitability(revenue, num_cases, num_units)
+        # Go Puff and On the Rocks get no delivery fee
+        no_delivery = is_no_delivery_store(row['Store'])
+
+        prof = calculate_retail_profitability(revenue, num_cases, num_units, include_delivery=not no_delivery)
         total_revenue += revenue
         total_profit += prof['profit']
 
@@ -485,7 +483,7 @@ def calculate_period_profitability(df_period):
         'revenue': total_revenue,
         'profit': total_profit,
         'margin_pct': margin_pct,
-        'orders': len(df_eligible)
+        'orders': len(df_period)
     }
 
 
@@ -833,13 +831,13 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
                 }
             )
 
-        # Profitability Section - Exclude Go Puff and On the Rocks
+        # Profitability Section - All stores included
         st.markdown("---")
         st.markdown("### Order Profitability")
-        st.caption("Excludes Go Puff and On the Rocks orders")
+        st.caption("Go Puff and On the Rocks orders have no delivery fee")
 
-        # Filter out Go Puff and On the Rocks for profitability
-        df_profit = df_all[~df_all['Store'].apply(is_excluded_store)].copy()
+        # Include all stores for profitability
+        df_profit = df_all.copy()
 
         if not df_profit.empty:
             # Calculate profitability for each order
@@ -850,10 +848,14 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             # Calculate profitability metrics
             profit_data = []
             for _, row in df_profit.iterrows():
+                # Go Puff and On the Rocks get no delivery fee
+                no_delivery = is_no_delivery_store(row['Store'])
+
                 prof = calculate_retail_profitability(
                     revenue=row['Total'],
                     num_cases=int(row['Cases']),
-                    num_units=int(row['Units'])
+                    num_units=int(row['Units']),
+                    include_delivery=not no_delivery
                 )
                 profit_data.append({
                     'Store': row['Store'],
@@ -946,10 +948,10 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
 | 11-15 | £34.65-47.25 | 31-40 | £77.50-94.00 |
 | 16-20 | £48.00-57.00 | 41-50 | £96.35-117.50 |
                     """)
-                st.caption("*Go Puff and On the Rocks orders are excluded from profitability calculations*")
+                st.caption("*Go Puff and On the Rocks orders have no delivery fee applied*")
 
         else:
-            st.info("No orders available for profitability calculation (excluding Go Puff and On the Rocks).")
+            st.info("No orders available for profitability calculation.")
 
     except Exception as e:
         st.error(f"Error loading retail data: {e}")
