@@ -496,7 +496,7 @@ def is_on_the_rocks(store_name):
 
 # Units per case by store type
 UNITS_PER_CASE_DEFAULT = 6  # Regular retail stores
-UNITS_PER_CASE_GOPUFF = 8   # Go Puff (chilled)
+UNITS_PER_CASE_GOPUFF = 6   # Go Puff (chilled)
 
 # Go Puff (chilled) specific costs - per unit
 GOPUFF_DELIVERY_PER_UNIT = 0.18
@@ -547,8 +547,8 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             'ref': 'MANUAL-GP-001',
             'processed': datetime.now().strftime('%Y-%m-%d'),
             'num_items': 1,
-            'qty': 301,  # 301 cases (8 units per case = 2,408 units)
-            'total': 10234.00,
+            'qty': 404,  # 404 cases (6 units per case = 2,424 units)
+            'total': 10302.00,
             'skus': 'Various',
         }
         all_retail_orders.append(manual_order)
@@ -560,7 +560,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             'ref': 'MANUAL-GP-002',
             'processed': datetime.now().strftime('%Y-%m-%d'),
             'num_items': 1,
-            'qty': 376,  # 376 cases (8 units per case = 3,008 units)
+            'qty': 376,  # 376 cases (6 units per case = 2,256 units)
             'total': 12784.00,
             'skus': 'Various',
         }
