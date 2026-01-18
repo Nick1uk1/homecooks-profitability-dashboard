@@ -21,7 +21,7 @@ from metrics import (
     calculate_kpis,
     OrderMetrics,
 )
-from appstle_client import fetch_appstle_metrics, is_all_time_high
+from appstle_client import fetch_appstle_metrics, is_all_time_high, fetch_subscription_metrics_for_period
 
 
 # HomeCooks Brand Colors
@@ -1694,7 +1694,6 @@ def main():
 def render_weekly_scorecard():
     """Render Weekly Scorecard - previous week's performance snapshot."""
     import calendar
-    from appstle_client import fetch_subscription_metrics_for_period
 
     today = date.today()
 
