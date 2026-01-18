@@ -1697,15 +1697,15 @@ def render_weekly_scorecard():
 
     today = date.today()
 
-    # Calculate previous week (most recent completed Mon-Sun)
-    days_since_monday = today.weekday()
-    if days_since_monday == 0:  # Today is Monday
-        last_sunday = today - timedelta(days=1)
-    else:
-        last_sunday = today - timedelta(days=days_since_monday)
+    # Calculate previous week (most recent completed Mon-Sun calendar week)
+    # First find this week's Monday
+    this_monday = today - timedelta(days=today.weekday())
+    # Previous week's Sunday is the day before this Monday
+    last_sunday = this_monday - timedelta(days=1)
+    # Previous week's Monday is 6 days before that Sunday
     last_monday = last_sunday - timedelta(days=6)
 
-    # Week before that
+    # Week before that (for comparison)
     prev_week_sunday = last_monday - timedelta(days=1)
     prev_week_monday = prev_week_sunday - timedelta(days=6)
 
