@@ -1709,15 +1709,19 @@ def render_weekly_scorecard():
     prev_week_sunday = last_monday - timedelta(days=1)
     prev_week_monday = prev_week_sunday - timedelta(days=6)
 
-    # MTD periods
-    mtd_start = today.replace(day=1)
-    if today.month == 1:
-        last_month_start = today.replace(year=today.year-1, month=12, day=1)
-        last_month_same_day = today.replace(year=today.year-1, month=12, day=min(today.day, 31))
+    # MTD periods - use last_sunday as the end date for the snapshot
+    # MTD = from 1st of last_sunday's month to last_sunday
+    mtd_start = last_sunday.replace(day=1)
+    mtd_end = last_sunday
+
+    # Last month comparison: same day range in previous month
+    if last_sunday.month == 1:
+        last_month_start = last_sunday.replace(year=last_sunday.year-1, month=12, day=1)
+        last_month_same_day = last_sunday.replace(year=last_sunday.year-1, month=12, day=min(last_sunday.day, 31))
     else:
-        last_month_start = today.replace(month=today.month-1, day=1)
-        last_month_days = calendar.monthrange(today.year, today.month-1)[1]
-        last_month_same_day = today.replace(month=today.month-1, day=min(today.day, last_month_days))
+        last_month_start = last_sunday.replace(month=last_sunday.month-1, day=1)
+        last_month_days = calendar.monthrange(last_sunday.year, last_sunday.month-1)[1]
+        last_month_same_day = last_sunday.replace(month=last_sunday.month-1, day=min(last_sunday.day, last_month_days))
 
     # Convert to datetime for fetching
     week_start_dt = datetime.combine(last_monday, datetime.min.time())
@@ -1725,7 +1729,7 @@ def render_weekly_scorecard():
     prev_week_start_dt = datetime.combine(prev_week_monday, datetime.min.time())
     prev_week_end_dt = datetime.combine(prev_week_sunday, datetime.max.time())
     mtd_start_dt = datetime.combine(mtd_start, datetime.min.time())
-    mtd_end_dt = datetime.combine(today, datetime.max.time())
+    mtd_end_dt = datetime.combine(mtd_end, datetime.max.time())
     lm_start_dt = datetime.combine(last_month_start, datetime.min.time())
     lm_end_dt = datetime.combine(last_month_same_day, datetime.max.time())
 
