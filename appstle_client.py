@@ -258,3 +258,70 @@ def is_all_time_high(current_count: int, historical_high: int) -> bool:
     Returns True only if current count exceeds the historical high.
     """
     return current_count > historical_high
+
+
+@st.cache_data(ttl=3600, show_spinner=False)  # 1 hour cache
+def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str) -> Optional[Dict]:
+    """
+    Fetch subscription metrics for a specific date range.
+    Dates passed as strings for cache compatibility.
+
+    Returns:
+        Dict with 'new', 'cancelled', and 'active_total' counts, or None on error.
+    """
+    # Parse dates
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+    # Get API key
+    api_key = None
+    try:
+        api_key = st.secrets.get("APPSTLE_API_KEY")
+    except Exception:
+        pass
+
+    if not api_key:
+        api_key = os.environ.get("APPSTLE_API_KEY")
+
+    if not api_key:
+        return None
+
+    try:
+        client = AppstleClient(api_key)
+        all_subs = client.get_all_subscriptions()
+
+        # Count new subscriptions in period (currently active)
+        new_count = 0
+        for sub in all_subs:
+            if sub.get('status', '').lower() == 'active':
+                created = sub.get('createdAt')
+                if created:
+                    try:
+                        created_date = datetime.fromisoformat(created.replace('Z', '+00:00')).date()
+                        if start_date <= created_date <= end_date:
+                            new_count += 1
+                    except (ValueError, TypeError):
+                        pass
+
+        # Count cancellations in period
+        cancelled_count = 0
+        for sub in all_subs:
+            cancelled = sub.get('cancelledOn')
+            if cancelled:
+                try:
+                    cancelled_date = datetime.fromisoformat(cancelled.replace('Z', '+00:00')).date()
+                    if start_date <= cancelled_date <= end_date:
+                        cancelled_count += 1
+                except (ValueError, TypeError):
+                    pass
+
+        # Active total
+        active_count = len([s for s in all_subs if s.get('status', '').lower() == 'active'])
+
+        return {
+            'new': new_count,
+            'cancelled': cancelled_count,
+            'active_total': active_count,
+        }
+    except Exception:
+        return None

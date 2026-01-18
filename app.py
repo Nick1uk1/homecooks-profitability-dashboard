@@ -1658,7 +1658,7 @@ def main():
         """, unsafe_allow_html=True)
 
     # Tabs
-    tab_d2c, tab_retail, tab_gopuff = st.tabs(["HomeCooks D2C", "HomeCooks Retail", "Go Puff Sales"])
+    tab_d2c, tab_retail, tab_gopuff, tab_scorecard = st.tabs(["HomeCooks D2C", "HomeCooks Retail", "Go Puff Sales", "Weekly Scorecard"])
 
     date_min = datetime.combine(date_start, datetime.min.time())
     date_max = datetime.combine(date_end, datetime.max.time())
@@ -1683,6 +1683,230 @@ def main():
     with tab_gopuff:
         st.markdown("*Go Puff sales data from Google Sheets*")
         render_gopuff_dashboard()
+
+    # Weekly Scorecard Tab
+    with tab_scorecard:
+        st.markdown("*Weekly performance snapshot - updates every Monday*")
+        if st.session_state.get("loaded"):
+            render_weekly_scorecard()
+
+
+def render_weekly_scorecard():
+    """Render Weekly Scorecard - previous week's performance snapshot."""
+    import calendar
+    from appstle_client import fetch_subscription_metrics_for_period
+
+    today = date.today()
+
+    # Calculate previous week (most recent completed Mon-Sun)
+    days_since_monday = today.weekday()
+    if days_since_monday == 0:  # Today is Monday
+        last_sunday = today - timedelta(days=1)
+    else:
+        last_sunday = today - timedelta(days=days_since_monday)
+    last_monday = last_sunday - timedelta(days=6)
+
+    # Week before that
+    prev_week_sunday = last_monday - timedelta(days=1)
+    prev_week_monday = prev_week_sunday - timedelta(days=6)
+
+    # MTD periods
+    mtd_start = today.replace(day=1)
+    if today.month == 1:
+        last_month_start = today.replace(year=today.year-1, month=12, day=1)
+        last_month_same_day = today.replace(year=today.year-1, month=12, day=min(today.day, 31))
+    else:
+        last_month_start = today.replace(month=today.month-1, day=1)
+        last_month_days = calendar.monthrange(today.year, today.month-1)[1]
+        last_month_same_day = today.replace(month=today.month-1, day=min(today.day, last_month_days))
+
+    # Convert to datetime for fetching
+    week_start_dt = datetime.combine(last_monday, datetime.min.time())
+    week_end_dt = datetime.combine(last_sunday, datetime.max.time())
+    prev_week_start_dt = datetime.combine(prev_week_monday, datetime.min.time())
+    prev_week_end_dt = datetime.combine(prev_week_sunday, datetime.max.time())
+    mtd_start_dt = datetime.combine(mtd_start, datetime.min.time())
+    mtd_end_dt = datetime.combine(today, datetime.max.time())
+    lm_start_dt = datetime.combine(last_month_start, datetime.min.time())
+    lm_end_dt = datetime.combine(last_month_same_day, datetime.max.time())
+
+    # Header
+    st.markdown(f"### Weekly Scorecard: {last_monday.strftime('%b %d')} - {last_sunday.strftime('%b %d, %Y')}")
+
+    # Fetch all data
+    with st.spinner("Loading scorecard data..."):
+        # Fetch D2C data
+        d2c_week = fetch_d2c_orders_for_period(week_start_dt, week_end_dt)
+        d2c_prev_week = fetch_d2c_orders_for_period(prev_week_start_dt, prev_week_end_dt)
+        d2c_mtd = fetch_d2c_orders_for_period(mtd_start_dt, mtd_end_dt)
+        d2c_lm = fetch_d2c_orders_for_period(lm_start_dt, lm_end_dt)
+
+        # Fetch Retail data
+        retail_week = fetch_retail_order_details(week_start_dt, week_end_dt)
+        retail_prev_week = fetch_retail_order_details(prev_week_start_dt, prev_week_end_dt)
+        retail_mtd = fetch_retail_order_details(mtd_start_dt, mtd_end_dt)
+        retail_lm = fetch_retail_order_details(lm_start_dt, lm_end_dt)
+
+        # Fetch subscription data
+        sub_week = fetch_subscription_metrics_for_period(
+            last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d'))
+        sub_prev_week = fetch_subscription_metrics_for_period(
+            prev_week_monday.strftime('%Y-%m-%d'), prev_week_sunday.strftime('%Y-%m-%d'))
+        sub_mtd = fetch_subscription_metrics_for_period(
+            mtd_start.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))
+        sub_lm = fetch_subscription_metrics_for_period(
+            last_month_start.strftime('%Y-%m-%d'), last_month_same_day.strftime('%Y-%m-%d'))
+
+    # Calculate D2C metrics
+    d2c_week_metrics = calculate_d2c_period_metrics(d2c_week)
+    d2c_prev_metrics = calculate_d2c_period_metrics(d2c_prev_week)
+    d2c_mtd_metrics = calculate_d2c_period_metrics(d2c_mtd)
+    d2c_lm_metrics = calculate_d2c_period_metrics(d2c_lm)
+
+    # Calculate Retail metrics - convert to DataFrame for calculate_period_profitability
+    def retail_list_to_metrics(retail_list):
+        if not retail_list:
+            return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0}
+        df = pd.DataFrame(retail_list)
+        df.columns = [c.title() if c != 'total' else 'Total' for c in df.columns]
+        if 'Total' not in df.columns and 'total' in [c.lower() for c in df.columns]:
+            df = df.rename(columns={c: 'Total' for c in df.columns if c.lower() == 'total'})
+        if 'Qty' not in df.columns and 'qty' in [c.lower() for c in df.columns]:
+            df = df.rename(columns={c: 'Qty' for c in df.columns if c.lower() == 'qty'})
+        if 'Store' not in df.columns and 'store' in [c.lower() for c in df.columns]:
+            df = df.rename(columns={c: 'Store' for c in df.columns if c.lower() == 'store'})
+        return calculate_period_profitability(df)
+
+    retail_week_metrics = retail_list_to_metrics(retail_week)
+    retail_prev_metrics = retail_list_to_metrics(retail_prev_week)
+    retail_mtd_metrics = retail_list_to_metrics(retail_mtd)
+    retail_lm_metrics = retail_list_to_metrics(retail_lm)
+
+    # Display in 3 columns
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("#### D2C")
+        # Week revenue with delta
+        week_rev = d2c_week_metrics['revenue']
+        prev_rev = d2c_prev_metrics['revenue']
+        delta_pct = ((week_rev / prev_rev) - 1) * 100 if prev_rev > 0 else 0
+        st.metric("Revenue (Week)", f"£{week_rev:,.0f}", f"{delta_pct:+.1f}% vs LW")
+
+        # Week profit with delta
+        week_profit = d2c_week_metrics['profit']
+        prev_profit = d2c_prev_metrics['profit']
+        profit_delta = ((week_profit / prev_profit) - 1) * 100 if prev_profit > 0 else 0
+        st.metric("Profit (Week)", f"£{week_profit:,.0f}", f"{profit_delta:+.1f}% vs LW")
+
+        # Orders
+        week_orders = d2c_week_metrics['orders']
+        prev_orders = d2c_prev_metrics['orders']
+        orders_delta = week_orders - prev_orders
+        st.metric("Orders (Week)", f"{week_orders:,}", f"{orders_delta:+d} vs LW")
+
+        st.markdown("---")
+        # MTD
+        mtd_rev = d2c_mtd_metrics['revenue']
+        lm_rev = d2c_lm_metrics['revenue']
+        mtd_delta = ((mtd_rev / lm_rev) - 1) * 100 if lm_rev > 0 else 0
+        st.metric("Revenue (MTD)", f"£{mtd_rev:,.0f}", f"{mtd_delta:+.1f}% vs LM")
+
+        mtd_profit = d2c_mtd_metrics['profit']
+        lm_profit = d2c_lm_metrics['profit']
+        mtd_profit_delta = ((mtd_profit / lm_profit) - 1) * 100 if lm_profit > 0 else 0
+        st.metric("Profit (MTD)", f"£{mtd_profit:,.0f}", f"{mtd_profit_delta:+.1f}% vs LM")
+
+    with col2:
+        st.markdown("#### Retail")
+        # Week revenue with delta
+        r_week_rev = retail_week_metrics['revenue']
+        r_prev_rev = retail_prev_metrics['revenue']
+        r_delta_pct = ((r_week_rev / r_prev_rev) - 1) * 100 if r_prev_rev > 0 else 0
+        st.metric("Revenue (Week)", f"£{r_week_rev:,.0f}", f"{r_delta_pct:+.1f}% vs LW")
+
+        # Week profit with delta
+        r_week_profit = retail_week_metrics['profit']
+        r_prev_profit = retail_prev_metrics['profit']
+        r_profit_delta = ((r_week_profit / r_prev_profit) - 1) * 100 if r_prev_profit > 0 else 0
+        st.metric("Profit (Week)", f"£{r_week_profit:,.0f}", f"{r_profit_delta:+.1f}% vs LW")
+
+        # Orders
+        r_week_orders = retail_week_metrics['orders']
+        r_prev_orders = retail_prev_metrics['orders']
+        r_orders_delta = r_week_orders - r_prev_orders
+        st.metric("Orders (Week)", f"{r_week_orders:,}", f"{r_orders_delta:+d} vs LW")
+
+        st.markdown("---")
+        # MTD
+        r_mtd_rev = retail_mtd_metrics['revenue']
+        r_lm_rev = retail_lm_metrics['revenue']
+        r_mtd_delta = ((r_mtd_rev / r_lm_rev) - 1) * 100 if r_lm_rev > 0 else 0
+        st.metric("Revenue (MTD)", f"£{r_mtd_rev:,.0f}", f"{r_mtd_delta:+.1f}% vs LM")
+
+        r_mtd_profit = retail_mtd_metrics['profit']
+        r_lm_profit = retail_lm_metrics['profit']
+        r_mtd_profit_delta = ((r_mtd_profit / r_lm_profit) - 1) * 100 if r_lm_profit > 0 else 0
+        st.metric("Profit (MTD)", f"£{r_mtd_profit:,.0f}", f"{r_mtd_profit_delta:+.1f}% vs LM")
+
+    with col3:
+        st.markdown("#### Subscribers")
+        if sub_week:
+            sub_new_delta = sub_week['new'] - (sub_prev_week['new'] if sub_prev_week else 0)
+            st.metric("New (Week)", sub_week['new'],
+                      f"{sub_new_delta:+d} vs LW" if sub_prev_week else None)
+
+            sub_cancelled_delta = sub_week['cancelled'] - (sub_prev_week['cancelled'] if sub_prev_week else 0)
+            st.metric("Cancelled (Week)", sub_week['cancelled'],
+                      f"{sub_cancelled_delta:+d} vs LW" if sub_prev_week else None,
+                      delta_color="inverse")
+
+            st.metric("Active Total", sub_week['active_total'])
+
+            st.markdown("---")
+            # MTD
+            if sub_mtd:
+                sub_mtd_new = sub_mtd['new']
+                sub_lm_new = sub_lm['new'] if sub_lm else 0
+                st.metric("New (MTD)", sub_mtd_new,
+                          f"{sub_mtd_new - sub_lm_new:+d} vs LM" if sub_lm else None)
+
+                sub_mtd_cancelled = sub_mtd['cancelled']
+                sub_lm_cancelled = sub_lm['cancelled'] if sub_lm else 0
+                st.metric("Cancelled (MTD)", sub_mtd_cancelled,
+                          f"{sub_mtd_cancelled - sub_lm_cancelled:+d} vs LM" if sub_lm else None,
+                          delta_color="inverse")
+        else:
+            st.info("Subscription data unavailable")
+
+    # Combined totals row
+    st.markdown("---")
+    st.markdown("#### Combined Totals")
+    total_col1, total_col2, total_col3, total_col4 = st.columns(4)
+
+    total_week_rev = week_rev + r_week_rev
+    total_prev_rev = prev_rev + r_prev_rev
+    total_rev_delta = ((total_week_rev / total_prev_rev) - 1) * 100 if total_prev_rev > 0 else 0
+
+    total_week_profit = week_profit + r_week_profit
+    total_prev_profit = prev_profit + r_prev_profit
+    total_profit_delta = ((total_week_profit / total_prev_profit) - 1) * 100 if total_prev_profit > 0 else 0
+
+    total_margin = (total_week_profit / total_week_rev * 100) if total_week_rev > 0 else 0
+
+    with total_col1:
+        st.metric("Total Revenue (Week)", f"£{total_week_rev:,.0f}", f"{total_rev_delta:+.1f}% vs LW")
+
+    with total_col2:
+        st.metric("Total Profit (Week)", f"£{total_week_profit:,.0f}", f"{total_profit_delta:+.1f}% vs LW")
+
+    with total_col3:
+        st.metric("Combined Margin", f"{total_margin:.1f}%")
+
+    with total_col4:
+        total_orders = week_orders + r_week_orders
+        prev_total_orders = prev_orders + r_prev_orders
+        st.metric("Total Orders (Week)", f"{total_orders:,}", f"{total_orders - prev_total_orders:+d} vs LW")
 
 
 def render_gopuff_dashboard():
