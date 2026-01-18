@@ -467,6 +467,30 @@ def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[d
     return retail_orders
 
 
+def get_manual_gopuff_orders() -> List[dict]:
+    """Return manual Go Puff (chilled) orders to be added to retail data."""
+    return [
+        {
+            'store': 'Go Puff (chilled)',
+            'ref': 'MANUAL-GP-001',
+            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'num_items': 1,
+            'qty': 404,  # 404 cases (6 units per case = 2,424 units)
+            'total': 10302.00,
+            'skus': 'Various',
+        },
+        {
+            'store': 'Go Puff (chilled)',
+            'ref': 'MANUAL-GP-002',
+            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'num_items': 1,
+            'qty': 376,  # 376 cases (6 units per case = 2,256 units)
+            'total': 12784.00,
+            'skus': 'Various',
+        },
+    ]
+
+
 def normalize_store_name(name: str) -> str:
     """Normalize store name to help identify duplicates."""
     if not name:
@@ -541,31 +565,10 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         # Also fetch date-filtered orders for monthly breakdown
         filtered_retail_orders = fetch_retail_order_details(date_min, date_max)
 
-        # Add manual order for Go Puff (chilled)
-        manual_order = {
-            'store': 'Go Puff (chilled)',
-            'ref': 'MANUAL-GP-001',
-            'processed': datetime.now().strftime('%Y-%m-%d'),
-            'num_items': 1,
-            'qty': 404,  # 404 cases (6 units per case = 2,424 units)
-            'total': 10302.00,
-            'skus': 'Various',
-        }
-        all_retail_orders.append(manual_order)
-        filtered_retail_orders.append(manual_order)
-
-        # Add second manual order for Go Puff (chilled)
-        manual_order_2 = {
-            'store': 'Go Puff (chilled)',
-            'ref': 'MANUAL-GP-002',
-            'processed': datetime.now().strftime('%Y-%m-%d'),
-            'num_items': 1,
-            'qty': 376,  # 376 cases (6 units per case = 2,256 units)
-            'total': 12784.00,
-            'skus': 'Various',
-        }
-        all_retail_orders.append(manual_order_2)
-        filtered_retail_orders.append(manual_order_2)
+        # Add manual Go Puff (chilled) orders
+        for manual_order in get_manual_gopuff_orders():
+            all_retail_orders.append(manual_order)
+            filtered_retail_orders.append(manual_order)
 
         if not all_retail_orders:
             st.info("No retail orders found.")
@@ -1744,11 +1747,18 @@ def render_weekly_scorecard():
         d2c_mtd = fetch_d2c_orders_for_period(mtd_start_dt, mtd_end_dt)
         d2c_lm = fetch_d2c_orders_for_period(lm_start_dt, lm_end_dt)
 
-        # Fetch Retail data
+        # Fetch Retail data and add manual Go Puff orders
         retail_week = fetch_retail_order_details(week_start_dt, week_end_dt)
         retail_prev_week = fetch_retail_order_details(prev_week_start_dt, prev_week_end_dt)
         retail_mtd = fetch_retail_order_details(mtd_start_dt, mtd_end_dt)
         retail_lm = fetch_retail_order_details(lm_start_dt, lm_end_dt)
+
+        # Add manual Go Puff orders to all retail lists
+        manual_orders = get_manual_gopuff_orders()
+        retail_week.extend(manual_orders)
+        retail_prev_week.extend(manual_orders)
+        retail_mtd.extend(manual_orders)
+        retail_lm.extend(manual_orders)
 
         # Fetch subscription data
         sub_week = fetch_subscription_metrics_for_period(
