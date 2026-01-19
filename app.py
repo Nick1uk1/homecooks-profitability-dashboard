@@ -1431,7 +1431,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             st.warning("Could not fetch order details from Shopify.")
             return
 
-        cache_key = f"proc_{date_min}_{date_max}_v3"
+        cache_key = f"proc_{date_min}_{date_max}_v4"
 
         if cache_key not in st.session_state:
             client = ShopifyClient()
@@ -1599,7 +1599,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 small_costs = PACKAGING_COSTS["small"]
                 small_total = sum(small_costs.values())
                 st.markdown(f"""
-**Small Box** (< 10 SKUs)
+**Small Box** (1-10 SKUs)
 
 | Component | Cost |
 |-----------|------|
@@ -1615,7 +1615,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 large_costs = PACKAGING_COSTS["large"]
                 large_total = sum(large_costs.values())
                 st.markdown(f"""
-**Large Box** (10-16 SKUs)
+**Large Box** (11-16 SKUs)
 
 | Component | Cost |
 |-----------|------|

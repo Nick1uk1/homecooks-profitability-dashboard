@@ -210,7 +210,7 @@ def determine_box_type(sku_count: int) -> Tuple[str, int]:
     Returns:
         Tuple of (box_type, box_multiplier)
     """
-    if sku_count < 10:
+    if sku_count <= 10:
         return "small", 1
     elif sku_count <= 16:
         return "large", 1

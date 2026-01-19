@@ -10,8 +10,8 @@ A comprehensive Streamlit dashboard for tracking order profitability across D2C,
 - **Profitability calculation**: Revenue - COGS - Packaging = Profit
 - **COGS from Shopify** - Pulls InventoryItem.cost for each variant
 - **Packaging costs** based on SKU count:
-  - Small (<10 SKUs): £12.66
-  - Large (10-16 SKUs): £13.81
+  - Small (1-10 SKUs): £12.66
+  - Large (11-16 SKUs): £13.81
   - 2x Large (>16 SKUs): £27.62
 - **Weekly breakdown** with calendar date ranges
 - Customer names, SKU counts, box info, discounts, shipping, contribution margin
@@ -155,8 +155,8 @@ For each line item:
 ### Packaging Costs
 | SKU Count | Box Type | Cost |
 |-----------|----------|------|
-| < 10 | Small | £12.66 |
-| 10-16 | Large | £13.81 |
+| 1-10 | Small | £12.66 |
+| 11-16 | Large | £13.81 |
 | > 16 | 2x Large | £27.62 |
 
 ### Profit Metrics
