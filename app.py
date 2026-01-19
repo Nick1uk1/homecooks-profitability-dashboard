@@ -2385,6 +2385,28 @@ def render_gopuff_dashboard():
                     chilled_date_cols = [col for col in cols if parse_date_col(col)]
 
                     if product_col and chilled_date_cols:
+                        # Today's Sales by Product (latest date)
+                        st.markdown("#### 📆 Today's Sales by Product")
+                        latest_date_col = max(chilled_date_cols, key=parse_date_col)
+                        latest_date_obj = parse_date_col(latest_date_col)
+                        st.caption(f"Sales for {latest_date_obj.strftime('%B %d, %Y')}")
+
+                        today_chilled_sales = []
+                        for _, row in chilled_df.iterrows():
+                            product = row[product_col] if product_col in row else None
+                            if pd.notna(product) and 'HomeCooks' in str(product):
+                                qty = pd.to_numeric(row[latest_date_col], errors='coerce')
+                                if pd.notna(qty):
+                                    today_chilled_sales.append({'Product': str(product), 'Quantity': int(qty)})
+
+                        today_chilled_sales.sort(key=lambda x: x['Quantity'], reverse=True)
+                        if today_chilled_sales:
+                            st.dataframe(pd.DataFrame(today_chilled_sales), use_container_width=True, hide_index=True)
+                            total_today = sum(s['Quantity'] for s in today_chilled_sales)
+                            st.metric("Total Units Today", total_today)
+
+                        st.markdown("---")
+
                         # Weekly Sales by Product (with navigation)
                         st.markdown("#### 📅 Weekly Sales by Product")
 
