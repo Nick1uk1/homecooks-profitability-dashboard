@@ -34,6 +34,7 @@ class OrderMetrics:
     """Complete metrics for a single order."""
     order_id: int
     order_name: str
+    customer_id: Optional[int]
     customer_name: str
     created_at: datetime
     processed_at: Optional[datetime]
@@ -298,12 +299,14 @@ def process_order(
     sent_out_weekday = sent_out_at.strftime("%A")
     sent_out_week = get_iso_week(sent_out_at)
 
-    # Customer name - try multiple sources
+    # Customer info - try multiple sources
     customer_name = ""
+    customer_id = None
 
     # Try customer object first
     customer = order.get("customer") or {}
     if customer:
+        customer_id = customer.get('id')
         first = customer.get('first_name', '') or ''
         last = customer.get('last_name', '') or ''
         customer_name = f"{first} {last}".strip()
@@ -407,6 +410,7 @@ def process_order(
     return OrderMetrics(
         order_id=order_id,
         order_name=order_name,
+        customer_id=customer_id,
         customer_name=customer_name,
         created_at=created_at,
         processed_at=processed_at,
@@ -514,6 +518,7 @@ def create_orders_dataframe(orders: List[OrderMetrics]) -> pd.DataFrame:
             "weekday": o.sent_out_weekday,
             "week": o.sent_out_week,
             "order_name": o.order_name,
+            "customer_id": o.customer_id,
             "customer_name": o.customer_name,
             "order_id": o.order_id,
             "sku_count": o.sku_count,

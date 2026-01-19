@@ -75,6 +75,68 @@ def get_delivery_cost(num_cases: int) -> float:
     return 0.0
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_customer_order_metrics(customer_ids: tuple) -> dict:
+    """
+    Fetch order history for customers and calculate metrics.
+
+    Args:
+        customer_ids: Tuple of customer IDs (tuple for cacheability)
+
+    Returns:
+        Dict mapping customer_id to metrics: {customer_id: {'total_orders': int, 'last_order': date, 'frequency_days': float}}
+    """
+    if not customer_ids:
+        return {}
+
+    client = ShopifyClient()
+    metrics = {}
+
+    for cust_id in customer_ids:
+        if not cust_id:
+            continue
+
+        orders = client.get_customer_order_history(cust_id)
+        if not orders:
+            metrics[cust_id] = {'total_orders': 1, 'last_order': None, 'frequency_days': None}
+            continue
+
+        # Parse order dates
+        order_dates = []
+        for order in orders:
+            created = order.get('created_at') or order.get('processed_at')
+            if created:
+                try:
+                    dt = datetime.fromisoformat(created.replace('Z', '+00:00'))
+                    order_dates.append(dt.date())
+                except (ValueError, TypeError):
+                    pass
+
+        if not order_dates:
+            metrics[cust_id] = {'total_orders': len(orders), 'last_order': None, 'frequency_days': None}
+            continue
+
+        order_dates.sort(reverse=True)
+        last_order = order_dates[0]
+        total_orders = len(order_dates)
+
+        # Calculate frequency (average days between orders)
+        frequency_days = None
+        if total_orders > 1:
+            first_order = order_dates[-1]
+            days_span = (last_order - first_order).days
+            if days_span > 0:
+                frequency_days = days_span / (total_orders - 1)
+
+        metrics[cust_id] = {
+            'total_orders': total_orders,
+            'last_order': last_order,
+            'frequency_days': frequency_days
+        }
+
+    return metrics
+
+
 def calculate_retail_profitability(revenue: float, num_cases: int, store_name: str = '') -> dict:
     """
     Calculate retail order profitability based on cost assumptions.
@@ -1369,7 +1431,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             st.warning("Could not fetch order details from Shopify.")
             return
 
-        cache_key = f"proc_{date_min}_{date_max}_v2"
+        cache_key = f"proc_{date_min}_{date_max}_v3"
 
         if cache_key not in st.session_state:
             client = ShopifyClient()
@@ -1444,8 +1506,43 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         display_df = df.copy()
         display_df["sent_out_at"] = display_df["sent_out_at"].dt.strftime("%d/%m/%Y")
 
+        # Fetch customer order history metrics
+        if "customer_id" in display_df.columns:
+            unique_customer_ids = tuple(display_df["customer_id"].dropna().unique())
+            if unique_customer_ids:
+                with st.spinner("Loading customer order history..."):
+                    customer_metrics = get_customer_order_metrics(unique_customer_ids)
+
+                # Add customer metrics columns
+                display_df["cust_total_orders"] = display_df["customer_id"].apply(
+                    lambda x: customer_metrics.get(x, {}).get('total_orders', 1) if x else 1
+                )
+                display_df["cust_last_order"] = display_df["customer_id"].apply(
+                    lambda x: customer_metrics.get(x, {}).get('last_order') if x else None
+                )
+                display_df["cust_frequency"] = display_df["customer_id"].apply(
+                    lambda x: customer_metrics.get(x, {}).get('frequency_days') if x else None
+                )
+                # Format last order date
+                display_df["cust_last_order"] = display_df["cust_last_order"].apply(
+                    lambda x: x.strftime("%d/%m/%Y") if x else "-"
+                )
+                # Format frequency
+                display_df["cust_frequency"] = display_df["cust_frequency"].apply(
+                    lambda x: f"{x:.0f}d" if pd.notna(x) and x else "-"
+                )
+            else:
+                display_df["cust_total_orders"] = 1
+                display_df["cust_last_order"] = "-"
+                display_df["cust_frequency"] = "-"
+        else:
+            display_df["cust_total_orders"] = 1
+            display_df["cust_last_order"] = "-"
+            display_df["cust_frequency"] = "-"
+
         display_cols = [
             "sent_out_at", "weekday", "order_name", "customer_name",
+            "cust_total_orders", "cust_last_order", "cust_frequency",
             "sku_count", "box_type", "box_multiplier",
             "gross_item_value", "total_discounts", "net_revenue",
             "shipping_paid", "cogs", "packaging_total",
@@ -1455,6 +1552,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         disp_df = display_df[display_cols].copy()
         disp_df.columns = [
             "Date", "Day", "Order", "Customer",
+            "Orders", "Last Order", "Freq",
             "SKUs", "Box", "Mult",
             "Gross Value", "Discount", "Net Revenue",
             "Ship Paid", "COGS", "Packaging",
@@ -1467,6 +1565,9 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             use_container_width=True,
             height=400,
             column_config={
+                "Orders": st.column_config.NumberColumn(help="Total orders by this customer"),
+                "Last Order": st.column_config.TextColumn(help="Customer's most recent order date"),
+                "Freq": st.column_config.TextColumn(help="Avg days between orders"),
                 "Gross Value": st.column_config.NumberColumn(format="£%.2f"),
                 "Discount": st.column_config.NumberColumn(format="£%.2f"),
                 "Net Revenue": st.column_config.NumberColumn(format="£%.2f"),

@@ -193,6 +193,29 @@ class ShopifyClient:
 
         return None
 
+    def get_customer_order_history(self, customer_id: int) -> list:
+        """
+        Fetch all orders for a specific customer.
+
+        Args:
+            customer_id: The Shopify customer ID
+
+        Returns:
+            List of order dictionaries with id, name, created_at
+        """
+        if not customer_id:
+            return []
+
+        params = {
+            "customer_id": customer_id,
+            "status": "any",
+            "limit": 250,
+            "fields": "id,name,created_at,processed_at",
+        }
+
+        orders = list(self._paginate("orders.json", params, "orders"))
+        return orders
+
 
 def test_connection() -> bool:
     """Test if Shopify connection works."""
