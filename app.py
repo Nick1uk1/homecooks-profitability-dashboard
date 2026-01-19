@@ -2051,39 +2051,14 @@ def render_gopuff_dashboard():
         raw_response = requests.get(raw_data_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
         raw_df = pd.read_csv(StringIO(raw_response.text))
 
-        # Fetch and merge 5 additional chilled SKUs
+        # Fetch chilled SKUs data separately (will display in own section)
+        chilled_df = None
         try:
             chilled_response = requests.get(chilled_data_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
             if chilled_response.status_code == 200:
                 chilled_df = pd.read_csv(StringIO(chilled_response.text))
-                # Drop first column (product ID) if it exists and is unnamed
-                if chilled_df.columns[0] == '' or 'Unnamed' in str(chilled_df.columns[0]):
-                    chilled_df = chilled_df.iloc[:, 1:]
-                # Standardize date columns: convert M/DD/YYYY to MM/DD/YYYY
-                new_cols = {}
-                for col in chilled_df.columns:
-                    if col != 'Product Name':
-                        try:
-                            dt = datetime.strptime(col, '%m/%d/%Y')
-                            new_cols[col] = dt.strftime('%m/%d/%Y')
-                        except:
-                            try:
-                                dt = datetime.strptime(col, '%Y-%m-%d')
-                                new_cols[col] = dt.strftime('%m/%d/%Y')
-                            except:
-                                new_cols[col] = col
-                chilled_df = chilled_df.rename(columns=new_cols)
-                # Only keep columns that exist in raw_df
-                common_cols = ['Product Name'] + [c for c in chilled_df.columns if c in raw_df.columns and c != 'Product Name']
-                chilled_df = chilled_df[[c for c in common_cols if c in chilled_df.columns]]
-                # Concat and fill missing values with 0
-                if not chilled_df.empty:
-                    raw_df = pd.concat([raw_df, chilled_df], ignore_index=True)
-                    for col in raw_df.columns:
-                        if col != 'Product Name':
-                            raw_df[col] = pd.to_numeric(raw_df[col], errors='coerce').fillna(0).astype(int)
         except Exception:
-            pass  # Silently continue if chilled data fails
+            chilled_df = None
 
         if not gopuff_df.empty:
             # Extract key metrics
@@ -2342,6 +2317,73 @@ def render_gopuff_dashboard():
 
             if all_products:
                 st.dataframe(pd.DataFrame(all_products), use_container_width=True, hide_index=True, height=400)
+
+            # Chilled SKUs Section (5 additional products from separate sheet)
+            if chilled_df is not None and not chilled_df.empty:
+                st.divider()
+                st.markdown("### 🧊 Chilled SKUs (5 Products)")
+                st.caption("Additional chilled products tracked separately")
+
+                try:
+                    # Get product name column and date columns
+                    cols = chilled_df.columns.tolist()
+                    # Find Product Name column
+                    product_col = None
+                    for col in cols:
+                        if 'Product Name' in str(col):
+                            product_col = col
+                            break
+                    if not product_col and len(cols) > 1:
+                        product_col = cols[1]  # Second column is usually Product Name
+
+                    # Find date columns (anything that looks like a date)
+                    date_cols = []
+                    for col in cols:
+                        try:
+                            datetime.strptime(str(col).strip(), '%m/%d/%Y')
+                            date_cols.append(col)
+                        except:
+                            try:
+                                datetime.strptime(str(col).strip(), '%Y-%m-%d')
+                                date_cols.append(col)
+                            except:
+                                pass
+
+                    if product_col and date_cols:
+                        # Get latest date column
+                        latest_dates = sorted(date_cols, key=lambda x: datetime.strptime(str(x).strip(), '%m/%d/%Y') if '/' in str(x) else datetime.strptime(str(x).strip(), '%Y-%m-%d'), reverse=True)
+
+                        chilled_products = []
+                        for _, row in chilled_df.iterrows():
+                            product = row[product_col] if product_col in row else None
+                            if pd.notna(product) and 'HomeCooks' in str(product):
+                                # Sum last 7 days of sales
+                                week_total = 0
+                                latest_day = 0
+                                for i, date_col in enumerate(latest_dates[:7]):
+                                    try:
+                                        val = pd.to_numeric(row[date_col], errors='coerce')
+                                        if pd.notna(val):
+                                            week_total += int(val)
+                                            if i == 0:
+                                                latest_day = int(val)
+                                    except:
+                                        pass
+                                chilled_products.append({
+                                    'Product': str(product),
+                                    'Latest Day': latest_day,
+                                    'Last 7 Days': week_total
+                                })
+
+                        if chilled_products:
+                            chilled_display_df = pd.DataFrame(chilled_products)
+                            st.dataframe(chilled_display_df, use_container_width=True, hide_index=True)
+
+                            col1, col2 = st.columns(2)
+                            col1.metric("Chilled SKUs", len(chilled_products))
+                            col2.metric("Last 7 Days Total", sum(p['Last 7 Days'] for p in chilled_products))
+                except Exception as e:
+                    st.warning(f"Could not display chilled SKUs: {str(e)}")
 
         else:
             st.warning("No data available from Google Sheets")
