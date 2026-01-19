@@ -2336,22 +2336,28 @@ def render_gopuff_dashboard():
                     if not product_col and len(cols) > 1:
                         product_col = cols[1]  # Second column is usually Product Name
 
-                    # Find date columns (anything that looks like a date)
+                    # Find date columns (anything that looks like a date M/D/YYYY or MM/DD/YYYY)
                     date_cols = []
+                    def parse_date_col(col):
+                        """Parse date column with flexible format."""
+                        col_str = str(col).strip()
+                        if '/' in col_str:
+                            parts = col_str.split('/')
+                            if len(parts) == 3:
+                                try:
+                                    m, d, y = int(parts[0]), int(parts[1]), int(parts[2])
+                                    return datetime(y, m, d)
+                                except:
+                                    pass
+                        return None
+
                     for col in cols:
-                        try:
-                            datetime.strptime(str(col).strip(), '%m/%d/%Y')
+                        if parse_date_col(col):
                             date_cols.append(col)
-                        except:
-                            try:
-                                datetime.strptime(str(col).strip(), '%Y-%m-%d')
-                                date_cols.append(col)
-                            except:
-                                pass
 
                     if product_col and date_cols:
                         # Get latest date column
-                        latest_dates = sorted(date_cols, key=lambda x: datetime.strptime(str(x).strip(), '%m/%d/%Y') if '/' in str(x) else datetime.strptime(str(x).strip(), '%Y-%m-%d'), reverse=True)
+                        latest_dates = sorted(date_cols, key=lambda x: parse_date_col(x), reverse=True)
 
                         chilled_products = []
                         for _, row in chilled_df.iterrows():
