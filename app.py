@@ -2096,19 +2096,23 @@ def render_gopuff_dashboard():
             sku_day_match = sku_of_day.split('\n')[1] if '\n' in str(sku_of_day) else ""
             sku_day_qty = sku_of_day.split('\n')[-1].replace(' sold', '') if '\n' in str(sku_of_day) else "0"
 
-            # Calculate today's stats from raw data
-            date_cols = [col for col in raw_df.columns if col != 'Product Name']
+            # Calculate today's stats from raw data (excluding ice cream products)
+            # Filter out ice cream products (not currently selling)
+            ice_cream_keywords = ['Cookies and Cream', 'Choc Chip Swirl', '454ml']
+            active_raw_df = raw_df[~raw_df['Product Name'].str.contains('|'.join(ice_cream_keywords), case=False, na=False)]
+
+            date_cols = [col for col in active_raw_df.columns if col != 'Product Name']
             if date_cols:
                 try:
                     latest_date = max([datetime.strptime(d, '%m/%d/%Y') for d in date_cols])
                     latest_date_str = latest_date.strftime('%m/%d/%Y')
-                    today_sales = pd.to_numeric(raw_df[latest_date_str], errors='coerce').fillna(0)
-                    total_skus = int(len(raw_df))
+                    today_sales = pd.to_numeric(active_raw_df[latest_date_str], errors='coerce').fillna(0)
+                    total_skus = int(len(active_raw_df))
                     skus_with_sales = int((today_sales > 0).sum())
                     skus_zero_sales = int(total_skus - skus_with_sales)
                     total_units_today = int(today_sales.sum())
                 except:
-                    total_skus = len(raw_df)
+                    total_skus = len(active_raw_df)
                     skus_with_sales = 0
                     skus_zero_sales = 0
                     total_units_today = 0
