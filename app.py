@@ -2042,6 +2042,7 @@ def render_gopuff_dashboard():
     cache_buster = int(time_module.time())
     sheet_url = f"https://docs.google.com/spreadsheets/d/12-xrEgll_No_7J_P1xqZHa-HAtyRRwmQ5Hp6uWCM6ng/export?format=csv&gid=432589449&_={cache_buster}"
     raw_data_url = f"https://docs.google.com/spreadsheets/d/12-xrEgll_No_7J_P1xqZHa-HAtyRRwmQ5Hp6uWCM6ng/export?format=csv&gid=565428930&_={cache_buster}"
+    chilled_data_url = f"https://docs.google.com/spreadsheets/d/1Ml__ZYClaDN9n4VjFf7rrlt7wSvVJ0aRT6YPqlGBDYw/gviz/tq?tqx=out:csv&sheet=chilledsales&_={cache_buster}"
 
     try:
         response = requests.get(sheet_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
@@ -2049,6 +2050,40 @@ def render_gopuff_dashboard():
 
         raw_response = requests.get(raw_data_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
         raw_df = pd.read_csv(StringIO(raw_response.text))
+
+        # Fetch and merge 5 additional chilled SKUs
+        try:
+            chilled_response = requests.get(chilled_data_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
+            if chilled_response.status_code == 200:
+                chilled_df = pd.read_csv(StringIO(chilled_response.text))
+                # Drop first column (product ID) if it exists and is unnamed
+                if chilled_df.columns[0] == '' or 'Unnamed' in str(chilled_df.columns[0]):
+                    chilled_df = chilled_df.iloc[:, 1:]
+                # Standardize date columns: convert M/DD/YYYY to MM/DD/YYYY
+                new_cols = {}
+                for col in chilled_df.columns:
+                    if col != 'Product Name':
+                        try:
+                            dt = datetime.strptime(col, '%m/%d/%Y')
+                            new_cols[col] = dt.strftime('%m/%d/%Y')
+                        except:
+                            try:
+                                dt = datetime.strptime(col, '%Y-%m-%d')
+                                new_cols[col] = dt.strftime('%m/%d/%Y')
+                            except:
+                                new_cols[col] = col
+                chilled_df = chilled_df.rename(columns=new_cols)
+                # Only keep columns that exist in raw_df
+                common_cols = ['Product Name'] + [c for c in chilled_df.columns if c in raw_df.columns and c != 'Product Name']
+                chilled_df = chilled_df[[c for c in common_cols if c in chilled_df.columns]]
+                # Concat and fill missing values with 0
+                if not chilled_df.empty:
+                    raw_df = pd.concat([raw_df, chilled_df], ignore_index=True)
+                    for col in raw_df.columns:
+                        if col != 'Product Name':
+                            raw_df[col] = pd.to_numeric(raw_df[col], errors='coerce').fillna(0).astype(int)
+        except Exception:
+            pass  # Silently continue if chilled data fails
 
         if not gopuff_df.empty:
             # Extract key metrics
