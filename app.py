@@ -2056,7 +2056,8 @@ def render_gopuff_dashboard():
         try:
             chilled_response = requests.get(chilled_data_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
             if chilled_response.status_code == 200:
-                chilled_df = pd.read_csv(StringIO(chilled_response.text))
+                # Skip first row (metadata header) - actual headers are in row 2
+                chilled_df = pd.read_csv(StringIO(chilled_response.text), skiprows=1)
         except Exception:
             chilled_df = None
 
