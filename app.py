@@ -2115,6 +2115,36 @@ def render_gopuff_dashboard():
             else:
                 total_skus = skus_with_sales = skus_zero_sales = total_units_today = 0
 
+            # Add chilled SKUs to totals
+            chilled_today = 0
+            chilled_skus_count = 0
+            chilled_with_sales = 0
+            if chilled_df is not None and not chilled_df.empty:
+                try:
+                    chilled_date_cols = [col for col in chilled_df.columns if '/' in str(col)]
+                    if chilled_date_cols:
+                        # Parse dates flexibly
+                        def parse_chilled_date(col):
+                            parts = str(col).split('/')
+                            if len(parts) == 3:
+                                try:
+                                    return datetime(int(parts[2]), int(parts[0]), int(parts[1]))
+                                except:
+                                    pass
+                            return None
+                        chilled_latest = max([c for c in chilled_date_cols if parse_chilled_date(c)], key=parse_chilled_date)
+                        chilled_sales = pd.to_numeric(chilled_df[chilled_latest], errors='coerce').fillna(0)
+                        chilled_today = int(chilled_sales.sum())
+                        chilled_skus_count = len(chilled_df)
+                        chilled_with_sales = int((chilled_sales > 0).sum())
+                        # Add to totals
+                        total_units_today += chilled_today
+                        total_skus += chilled_skus_count
+                        skus_with_sales += chilled_with_sales
+                        skus_zero_sales = total_skus - skus_with_sales
+                except:
+                    pass
+
             # Weekly top seller
             weekly_top = gopuff_df.iloc[5, 0] if len(gopuff_df) > 5 else ""
             weekly_product = weekly_top.split('\n')[1] if '\n' in str(weekly_top) else ""
@@ -2323,24 +2353,20 @@ def render_gopuff_dashboard():
             if chilled_df is not None and not chilled_df.empty:
                 st.divider()
                 st.markdown("### 🧊 Chilled SKUs (5 Products)")
-                st.caption("Additional chilled products tracked separately")
 
                 try:
                     # Get product name column and date columns
                     cols = chilled_df.columns.tolist()
-                    # Find Product Name column
                     product_col = None
                     for col in cols:
                         if 'Product Name' in str(col):
                             product_col = col
                             break
                     if not product_col and len(cols) > 1:
-                        product_col = cols[1]  # Second column is usually Product Name
+                        product_col = cols[1]
 
-                    # Find date columns (anything that looks like a date M/D/YYYY or MM/DD/YYYY)
-                    date_cols = []
+                    # Find date columns
                     def parse_date_col(col):
-                        """Parse date column with flexible format."""
                         col_str = str(col).strip()
                         if '/' in col_str:
                             parts = col_str.split('/')
@@ -2352,43 +2378,77 @@ def render_gopuff_dashboard():
                                     pass
                         return None
 
-                    for col in cols:
-                        if parse_date_col(col):
-                            date_cols.append(col)
+                    chilled_date_cols = [col for col in cols if parse_date_col(col)]
 
-                    if product_col and date_cols:
-                        # Get latest date column
-                        latest_dates = sorted(date_cols, key=lambda x: parse_date_col(x), reverse=True)
+                    if product_col and chilled_date_cols:
+                        # Weekly Sales by Product (with navigation)
+                        st.markdown("#### 📅 Weekly Sales by Product")
 
-                        chilled_products = []
+                        if 'chilled_week_offset' not in st.session_state:
+                            st.session_state.chilled_week_offset = 0
+
+                        nav_col1, nav_col2, nav_col3 = st.columns([1, 2, 1])
+                        with nav_col1:
+                            if st.button("◀ Previous", key="chilled_prev"):
+                                st.session_state.chilled_week_offset -= 1
+                                st.rerun()
+                        with nav_col3:
+                            if st.button("Next ▶", key="chilled_next", disabled=(st.session_state.chilled_week_offset >= 0)):
+                                st.session_state.chilled_week_offset += 1
+                                st.rerun()
+
+                        # Calculate week range
+                        today = datetime.now()
+                        current_monday = today - timedelta(days=today.weekday())
+                        monday_start = current_monday + timedelta(weeks=st.session_state.chilled_week_offset)
+                        sunday_end = monday_start + timedelta(days=6)
+
+                        # Calculate weekly sales
+                        weekly_sales = {}
                         for _, row in chilled_df.iterrows():
                             product = row[product_col] if product_col in row else None
                             if pd.notna(product) and 'HomeCooks' in str(product):
-                                # Sum last 7 days of sales
-                                week_total = 0
-                                latest_day = 0
-                                for i, date_col in enumerate(latest_dates[:7]):
-                                    try:
+                                total = 0
+                                for date_col in chilled_date_cols:
+                                    date_obj = parse_date_col(date_col)
+                                    if date_obj and monday_start <= date_obj <= sunday_end:
                                         val = pd.to_numeric(row[date_col], errors='coerce')
                                         if pd.notna(val):
-                                            week_total += int(val)
-                                            if i == 0:
-                                                latest_day = int(val)
-                                    except:
-                                        pass
-                                chilled_products.append({
-                                    'Product': str(product),
-                                    'Latest Day': latest_day,
-                                    'Last 7 Days': week_total
-                                })
+                                            total += int(val)
+                                if total > 0:
+                                    weekly_sales[str(product)] = total
 
-                        if chilled_products:
-                            chilled_display_df = pd.DataFrame(chilled_products)
-                            st.dataframe(chilled_display_df, use_container_width=True, hide_index=True)
+                        sorted_weekly = sorted(weekly_sales.items(), key=lambda x: x[1], reverse=True)
+
+                        if sorted_weekly:
+                            weekly_df = pd.DataFrame(sorted_weekly, columns=['Product', 'Units Sold'])
+                            week_label = "This Week" if st.session_state.chilled_week_offset == 0 else f"{abs(st.session_state.chilled_week_offset)} week(s) ago"
+                            st.caption(f"**{week_label}:** {monday_start.strftime('%b %d')} - {sunday_end.strftime('%b %d, %Y')}")
+                            st.dataframe(weekly_df, use_container_width=True, hide_index=True)
 
                             col1, col2 = st.columns(2)
-                            col1.metric("Chilled SKUs", len(chilled_products))
-                            col2.metric("Last 7 Days Total", sum(p['Last 7 Days'] for p in chilled_products))
+                            col1.metric("Weekly Units", f"{sum(weekly_sales.values()):,}")
+                            col2.metric("SKUs Sold", len(weekly_sales))
+                        else:
+                            st.info(f"No chilled sales for week of {monday_start.strftime('%b %d')} - {sunday_end.strftime('%b %d, %Y')}")
+
+                        # All-Time Total Sales
+                        st.markdown("#### 📊 All-Time Total Sales")
+                        all_time_sales = []
+                        for _, row in chilled_df.iterrows():
+                            product = row[product_col] if product_col in row else None
+                            if pd.notna(product) and 'HomeCooks' in str(product):
+                                total = 0
+                                for date_col in chilled_date_cols:
+                                    val = pd.to_numeric(row[date_col], errors='coerce')
+                                    if pd.notna(val):
+                                        total += int(val)
+                                all_time_sales.append({'Product': str(product), 'Total Sold': total})
+
+                        if all_time_sales:
+                            all_time_df = pd.DataFrame(all_time_sales).sort_values('Total Sold', ascending=False)
+                            st.dataframe(all_time_df, use_container_width=True, hide_index=True)
+
                 except Exception as e:
                     st.warning(f"Could not display chilled SKUs: {str(e)}")
 
