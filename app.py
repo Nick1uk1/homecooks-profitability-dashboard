@@ -2042,8 +2042,6 @@ def render_gopuff_dashboard():
     cache_buster = int(time_module.time())
     sheet_url = f"https://docs.google.com/spreadsheets/d/12-xrEgll_No_7J_P1xqZHa-HAtyRRwmQ5Hp6uWCM6ng/export?format=csv&gid=432589449&_={cache_buster}"
     raw_data_url = f"https://docs.google.com/spreadsheets/d/12-xrEgll_No_7J_P1xqZHa-HAtyRRwmQ5Hp6uWCM6ng/export?format=csv&gid=565428930&_={cache_buster}"
-    # Second data source - 5 additional chilled SKUs
-    chilled_data_url = f"https://docs.google.com/spreadsheets/d/1Ml__ZYClaDN9n4VjFf7rrlt7wSvVJ0aRT6YPqlGBDYw/gviz/tq?tqx=out:csv&sheet=chilledsales&_={cache_buster}"
 
     try:
         response = requests.get(sheet_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
@@ -2051,26 +2049,6 @@ def render_gopuff_dashboard():
 
         raw_response = requests.get(raw_data_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
         raw_df = pd.read_csv(StringIO(raw_response.text))
-
-        # Fetch and merge chilled SKUs data
-        try:
-            chilled_response = requests.get(chilled_data_url, allow_redirects=True, headers={'Cache-Control': 'no-cache'})
-            if chilled_response.status_code == 200:
-                chilled_df = pd.read_csv(StringIO(chilled_response.text))
-                # Standardize column name if needed
-                if 'Product Name' not in chilled_df.columns and len(chilled_df.columns) > 0:
-                    first_col = chilled_df.columns[0]
-                    chilled_df = chilled_df.rename(columns={first_col: 'Product Name'})
-                # Merge with raw_df - combine both datasets
-                if not chilled_df.empty and 'Product Name' in chilled_df.columns:
-                    # Get common date columns and align data
-                    raw_df = pd.concat([raw_df, chilled_df], ignore_index=True)
-                    # Fill NaN with 0 for numeric columns
-                    for col in raw_df.columns:
-                        if col != 'Product Name':
-                            raw_df[col] = pd.to_numeric(raw_df[col], errors='coerce').fillna(0)
-        except Exception as e:
-            st.warning(f"Could not load chilled SKUs data: {e}")
 
         if not gopuff_df.empty:
             # Extract key metrics
