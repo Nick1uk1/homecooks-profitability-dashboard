@@ -2206,6 +2206,11 @@ def render_gopuff_dashboard():
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
+                # Calculate frozen vs chilled split
+                frozen_today = total_units_today - chilled_today
+                frozen_skus = total_skus - chilled_skus_count
+                frozen_with_sales = skus_with_sales - chilled_with_sales
+
                 zero_text = f'<br/><span style="color: #FF6B6B;">{skus_zero_sales} SKUs with 0 sales</span>' if skus_zero_sales > 0 else ''
                 st.markdown(f"""
                     <div style="background:{HC_DARK_TEAL}; padding:15px; border-radius:10px; text-align:center;">
@@ -2214,7 +2219,8 @@ def render_gopuff_dashboard():
                         <div style="color:{HC_WHITE}; font-size:1.5em; font-weight:bold;">{sku_day_qty} sold</div>
                         <div style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin-top:8px;">
                             <strong>{total_units_today:,} total units today</strong><br/>
-                            {skus_with_sales} of {total_skus} SKUs sold{zero_text}
+                            🧊 Frozen: {frozen_today:,} ({frozen_with_sales}/{frozen_skus} SKUs)<br/>
+                            ❄️ Chilled: {chilled_today:,} ({chilled_with_sales}/{chilled_skus_count} SKUs){zero_text}
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
