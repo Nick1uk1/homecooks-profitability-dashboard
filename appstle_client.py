@@ -211,23 +211,12 @@ class AppstleClient:
         # Calculate historical all-time high
         historical_high, peak_date = self.calculate_historical_high(all_subs)
 
-        # Debug info
-        total_fetched = len(all_subs)
-        total_with_created = len([s for s in all_subs if s.get('createdAt')])
-        total_with_cancelled_on = len([s for s in all_subs if s.get('cancelledOn')])
-        cancelled_status_count = len([s for s in all_subs if s.get('status', '').lower() == 'cancelled'])
-
         return {
             'active_subscribers': active_count,
             'new_this_week': new_this_week,
             'cancelled_this_week': cancelled_this_week,
             'week_start': week_start_date.strftime('%b %d'),
             'week_end': week_end_date.strftime('%b %d'),
-            # Debug
-            'debug_total_fetched': total_fetched,
-            'debug_with_created': total_with_created,
-            'debug_with_cancelled_on': total_with_cancelled_on,
-            'debug_cancelled_status': cancelled_status_count,
             'all_time_high': historical_high,
             'all_time_high_date': peak_date.strftime('%b %d, %Y') if peak_date else None,
         }

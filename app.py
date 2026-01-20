@@ -1417,13 +1417,6 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 delta_color="inverse" if cancelled_week > 0 else "off"
             )
 
-            # Debug info
-            with st.expander("Debug: Subscription Data"):
-                st.write(f"**Total subscriptions fetched:** {appstle_metrics.get('debug_total_fetched', 'N/A')}")
-                st.write(f"**With createdAt field:** {appstle_metrics.get('debug_with_created', 'N/A')}")
-                st.write(f"**With cancelledOn field:** {appstle_metrics.get('debug_with_cancelled_on', 'N/A')}")
-                st.write(f"**Status=cancelled count:** {appstle_metrics.get('debug_cancelled_status', 'N/A')}")
-
         # Process selected date range for detailed view
         dispatch_info = get_dispatch_info(d2c_linnworks)
 
