@@ -197,7 +197,9 @@ class AppstleClient:
         # Count cancellations this week
         # Count any subscription with cancelledOn date in this week (regardless of current status,
         # in case they cancelled and resubscribed)
+        # Also track those who cancelled after only 1 order
         cancelled_this_week = 0
+        cancelled_after_first_this_week = 0
         for sub in all_subs:
             cancelled_on = sub.get('cancelledOn')
             if cancelled_on:
@@ -205,6 +207,21 @@ class AppstleClient:
                     cancelled_dt = datetime.fromisoformat(cancelled_on.replace('Z', '+00:00')).replace(tzinfo=None)
                     if week_start <= cancelled_dt <= week_end:
                         cancelled_this_week += 1
+                        # Check if cancelled after only 1 order
+                        order_count = (
+                            sub.get('orderCount') or
+                            sub.get('billingPolicyOrderCount') or
+                            sub.get('totalOrders') or
+                            sub.get('numberOfOrders') or
+                            sub.get('ordersCount') or
+                            0
+                        )
+                        try:
+                            order_count = int(order_count)
+                        except (ValueError, TypeError):
+                            order_count = 0
+                        if order_count <= 1:
+                            cancelled_after_first_this_week += 1
                 except (ValueError, TypeError):
                     pass
 
@@ -215,6 +232,7 @@ class AppstleClient:
             'active_subscribers': active_count,
             'new_this_week': new_this_week,
             'cancelled_this_week': cancelled_this_week,
+            'cancelled_after_first_this_week': cancelled_after_first_this_week,
             'week_start': week_start_date.strftime('%b %d'),
             'week_end': week_end_date.strftime('%b %d'),
             'all_time_high': historical_high,

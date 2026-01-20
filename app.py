@@ -21,7 +21,7 @@ from metrics import (
     calculate_kpis,
     OrderMetrics,
 )
-from appstle_client import fetch_appstle_metrics, is_all_time_high, fetch_subscription_metrics_for_period, fetch_cancellation_analysis
+from appstle_client import fetch_appstle_metrics, is_all_time_high, fetch_subscription_metrics_for_period
 
 
 # HomeCooks Brand Colors
@@ -1417,17 +1417,15 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 delta_color="inverse" if cancelled_week > 0 else "off"
             )
 
-            # Cancellation after 1st order analysis
-            cancel_analysis = fetch_cancellation_analysis()
-            if cancel_analysis:
-                after_first = cancel_analysis['cancelled_after_first']
-                after_first_pct = cancel_analysis['cancelled_after_first_pct']
-                col4.metric(
-                    "Cancelled After 1st Order",
-                    f"{after_first:,}",
-                    f"{after_first_pct:.1f}% of all cancellations",
-                    delta_color="inverse" if after_first > 0 else "off"
-                )
+            # Cancelled after 1st order this week
+            after_first = appstle_metrics.get('cancelled_after_first_this_week', 0)
+            after_first_pct = (after_first / cancelled_week * 100) if cancelled_week > 0 else 0
+            col4.metric(
+                "After 1st Order",
+                f"{after_first:,}",
+                f"{after_first_pct:.0f}% of this week's cancellations",
+                delta_color="inverse" if after_first > 0 else "off"
+            )
 
         # Process selected date range for detailed view
         dispatch_info = get_dispatch_info(d2c_linnworks)
@@ -1751,7 +1749,6 @@ def main():
             fetch_all_retail_orders.clear()
             fetch_appstle_metrics.clear()
             fetch_subscription_metrics_for_period.clear()
-            fetch_cancellation_analysis.clear()
             for k in list(st.session_state.keys()):
                 if k.startswith("proc_") or k == "loaded":
                     del st.session_state[k]
