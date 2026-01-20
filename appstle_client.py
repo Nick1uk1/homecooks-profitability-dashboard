@@ -252,6 +252,61 @@ def fetch_appstle_metrics() -> Optional[Dict]:
         return None
 
 
+def analyze_cancellation_patterns(all_subs: List[Dict]) -> Dict:
+    """
+    Analyze when subscribers cancel - after how many orders.
+
+    Returns dict with:
+    - cancelled_after_first: count cancelled after only 1 order
+    - cancelled_after_first_pct: percentage
+    - avg_orders_before_cancel: average orders before cancellation
+    - order_distribution: dict of order count -> cancellation count
+    """
+    cancelled_subs = [s for s in all_subs if s.get('status', '').lower() == 'cancelled']
+
+    if not cancelled_subs:
+        return {
+            'cancelled_after_first': 0,
+            'cancelled_after_first_pct': 0,
+            'avg_orders_before_cancel': 0,
+            'order_distribution': {},
+            'total_cancelled': 0,
+        }
+
+    order_counts = []
+    order_distribution = {}
+
+    for sub in cancelled_subs:
+        # Try different field names that Appstle might use
+        order_count = (
+            sub.get('orderCount') or
+            sub.get('billingPolicyOrderCount') or
+            sub.get('totalOrders') or
+            sub.get('numberOfOrders') or
+            sub.get('ordersCount') or
+            1  # Default to 1 if not found
+        )
+
+        try:
+            order_count = int(order_count)
+        except (ValueError, TypeError):
+            order_count = 1
+
+        order_counts.append(order_count)
+        order_distribution[order_count] = order_distribution.get(order_count, 0) + 1
+
+    cancelled_after_first = sum(1 for c in order_counts if c <= 1)
+    avg_orders = sum(order_counts) / len(order_counts) if order_counts else 0
+
+    return {
+        'cancelled_after_first': cancelled_after_first,
+        'cancelled_after_first_pct': (cancelled_after_first / len(cancelled_subs) * 100) if cancelled_subs else 0,
+        'avg_orders_before_cancel': round(avg_orders, 1),
+        'order_distribution': dict(sorted(order_distribution.items())),
+        'total_cancelled': len(cancelled_subs),
+    }
+
+
 def is_all_time_high(current_count: int, historical_high: int) -> bool:
     """
     Check if current count is a new all-time high.
@@ -323,5 +378,31 @@ def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str
             'cancelled': cancelled_count,
             'active_total': active_count,
         }
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)  # 1 hour cache
+def fetch_cancellation_analysis() -> Optional[Dict]:
+    """
+    Fetch and analyze cancellation patterns.
+    Returns analysis of when/why subscribers cancel.
+    """
+    api_key = None
+    try:
+        api_key = st.secrets.get("APPSTLE_API_KEY")
+    except Exception:
+        pass
+
+    if not api_key:
+        api_key = os.environ.get("APPSTLE_API_KEY")
+
+    if not api_key:
+        return None
+
+    try:
+        client = AppstleClient(api_key)
+        all_subs = client.get_all_subscriptions()
+        return analyze_cancellation_patterns(all_subs)
     except Exception:
         return None

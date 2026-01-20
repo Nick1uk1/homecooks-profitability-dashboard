@@ -21,7 +21,7 @@ from metrics import (
     calculate_kpis,
     OrderMetrics,
 )
-from appstle_client import fetch_appstle_metrics, is_all_time_high, fetch_subscription_metrics_for_period
+from appstle_client import fetch_appstle_metrics, is_all_time_high, fetch_subscription_metrics_for_period, fetch_cancellation_analysis
 
 
 # HomeCooks Brand Colors
@@ -1397,7 +1397,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             at_all_time_high = is_all_time_high(active_count, historical_high)
             trophy = " 🏆" if at_all_time_high else ""
 
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
 
             col1.metric(
                 f"Active Subscribers{trophy}",
@@ -1416,6 +1416,18 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 f"Week of {week_range}",
                 delta_color="inverse" if cancelled_week > 0 else "off"
             )
+
+            # Cancellation after 1st order analysis
+            cancel_analysis = fetch_cancellation_analysis()
+            if cancel_analysis:
+                after_first = cancel_analysis['cancelled_after_first']
+                after_first_pct = cancel_analysis['cancelled_after_first_pct']
+                col4.metric(
+                    "Cancelled After 1st Order",
+                    f"{after_first:,}",
+                    f"{after_first_pct:.1f}% of all cancellations",
+                    delta_color="inverse" if after_first > 0 else "off"
+                )
 
         # Process selected date range for detailed view
         dispatch_info = get_dispatch_info(d2c_linnworks)
@@ -1739,6 +1751,7 @@ def main():
             fetch_all_retail_orders.clear()
             fetch_appstle_metrics.clear()
             fetch_subscription_metrics_for_period.clear()
+            fetch_cancellation_analysis.clear()
             for k in list(st.session_state.keys()):
                 if k.startswith("proc_") or k == "loaded":
                     del st.session_state[k]
