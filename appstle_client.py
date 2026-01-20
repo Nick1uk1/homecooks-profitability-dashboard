@@ -196,9 +196,15 @@ class AppstleClient:
                     pass
 
         # Count cancellations this week
+        # Use cancelledOn if available, otherwise use updatedAt for cancelled subscriptions
         cancelled_this_week = 0
         for sub in all_subs:
-            cancelled_on = sub.get('cancelledOn')
+            status = sub.get('status', '').lower()
+            if status != 'cancelled':
+                continue
+
+            # Try cancelledOn first, fall back to updatedAt
+            cancelled_on = sub.get('cancelledOn') or sub.get('updatedAt')
             if cancelled_on:
                 try:
                     cancelled_dt = datetime.fromisoformat(cancelled_on.replace('Z', '+00:00')).replace(tzinfo=None)
@@ -302,9 +308,14 @@ def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str
                     pass
 
         # Count cancellations in period
+        # Use cancelledOn if available, otherwise use updatedAt for cancelled subscriptions
         cancelled_count = 0
         for sub in all_subs:
-            cancelled = sub.get('cancelledOn')
+            status = sub.get('status', '').lower()
+            if status != 'cancelled':
+                continue
+
+            cancelled = sub.get('cancelledOn') or sub.get('updatedAt')
             if cancelled:
                 try:
                     cancelled_date = datetime.fromisoformat(cancelled.replace('Z', '+00:00')).date()
