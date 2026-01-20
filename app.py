@@ -1737,6 +1737,8 @@ def main():
             fetch_linnworks_orders.clear()
             fetch_retail_order_details.clear()
             fetch_all_retail_orders.clear()
+            fetch_appstle_metrics.clear()
+            fetch_subscription_metrics_for_period.clear()
             for k in list(st.session_state.keys()):
                 if k.startswith("proc_") or k == "loaded":
                     del st.session_state[k]
