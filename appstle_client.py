@@ -182,13 +182,12 @@ class AppstleClient:
         active_subs = [s for s in all_subs if s.get('status', '').lower() == 'active']
         active_count = len(active_subs)
 
-        # Count new subscriptions this week (by createdAt) - count from ALL subs created this week
+        # Count new subscriptions this week (by createdAt) - count ALL subs created this week
+        # regardless of current status (matches Appstle Analytics)
         new_this_week = 0
         for sub in all_subs:
             created_at = sub.get('createdAt')
-            status = sub.get('status', '').lower()
-            # Only count if currently active (new subscriber that stayed)
-            if created_at and status == 'active':
+            if created_at:
                 try:
                     created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00')).replace(tzinfo=None)
                     if week_start <= created_dt <= week_end:
@@ -290,18 +289,17 @@ def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str
         client = AppstleClient(api_key)
         all_subs = client.get_all_subscriptions()
 
-        # Count new subscriptions in period (currently active)
+        # Count new subscriptions in period (all statuses - matches Appstle Analytics)
         new_count = 0
         for sub in all_subs:
-            if sub.get('status', '').lower() == 'active':
-                created = sub.get('createdAt')
-                if created:
-                    try:
-                        created_date = datetime.fromisoformat(created.replace('Z', '+00:00')).date()
-                        if start_date <= created_date <= end_date:
-                            new_count += 1
-                    except (ValueError, TypeError):
-                        pass
+            created = sub.get('createdAt')
+            if created:
+                try:
+                    created_date = datetime.fromisoformat(created.replace('Z', '+00:00')).date()
+                    if start_date <= created_date <= end_date:
+                        new_count += 1
+                except (ValueError, TypeError):
+                    pass
 
         # Count cancellations in period
         cancelled_count = 0

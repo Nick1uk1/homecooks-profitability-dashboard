@@ -217,6 +217,48 @@ class ShopifyClient:
         return orders
 
 
+    def get_products(
+        self,
+        status: str = "active",
+        limit: int = 250,
+    ) -> Generator[dict, None, None]:
+        """
+        Fetch all products with pagination.
+
+        Args:
+            status: Product status filter (active, archived, draft, any)
+            limit: Results per page (max 250)
+
+        Yields:
+            Product dictionaries
+        """
+        params = {
+            "status": status,
+            "limit": min(limit, 250),
+        }
+
+        yield from self._paginate("products.json", params, "products")
+
+    def get_product_metafields(self, product_id: int) -> list:
+        """
+        Fetch all metafields for a product.
+
+        Args:
+            product_id: The Shopify product ID
+
+        Returns:
+            List of metafield dictionaries
+        """
+        url = f"{self.base_url}/products/{product_id}/metafields.json"
+        response = self._get_with_rate_limit(url)
+
+        if response.status_code == 404:
+            return []
+
+        response.raise_for_status()
+        return response.json().get("metafields", [])
+
+
 def test_connection() -> bool:
     """Test if Shopify connection works."""
     try:
