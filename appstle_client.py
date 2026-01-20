@@ -97,11 +97,10 @@ class AppstleClient:
         return all_subscriptions
 
     def get_all_subscriptions(self) -> List[Dict]:
-        """Fetch all subscriptions (active, cancelled, paused)."""
+        """Fetch all subscriptions (active and cancelled)."""
         all_subs = []
         all_subs.extend(self.get_active_subscriptions())
         all_subs.extend(self.get_cancelled_subscriptions())
-        all_subs.extend(self.get_paused_subscriptions())
         return all_subs
 
     def calculate_historical_high(self, all_subs: List[Dict]) -> tuple:
