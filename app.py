@@ -1552,7 +1552,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         display_cols = [
             "sent_out_at", "weekday", "order_name", "customer_name",
             "cust_total_orders", "cust_last_order", "cust_frequency",
-            "sku_count", "box_type", "box_multiplier",
+            "total_units", "box_type", "box_multiplier",
             "gross_item_value", "total_discounts", "net_revenue",
             "shipping_paid", "cogs", "packaging_total",
             "contribution", "contribution_margin_pct"
@@ -1562,7 +1562,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         disp_df.columns = [
             "Date", "Day", "Order", "Customer",
             "Orders", "Last Order", "Freq",
-            "SKUs", "Box", "Mult",
+            "Items", "Box", "Mult",
             "Gross Value", "Discount", "Net Revenue",
             "Ship Paid", "COGS", "Packaging",
             "Contribution", "Margin %"
@@ -1596,7 +1596,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 |-----------|-------------|
 | Revenue | Gross Item Value - Discounts |
 | COGS | Shopify InventoryItem.cost per variant |
-| Packaging | Based on SKU count (see below) |
+| Packaging | Based on total items in box (see below) |
 | Profit | Revenue - COGS - Packaging |
             """)
 

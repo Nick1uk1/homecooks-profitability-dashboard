@@ -200,36 +200,36 @@ def get_packaging_totals() -> Dict[str, float]:
     }
 
 
-def determine_box_type(sku_count: int) -> Tuple[str, int]:
+def determine_box_type(item_count: int) -> Tuple[str, int]:
     """
-    Determine box type and multiplier based on SKU count.
+    Determine box type and multiplier based on total items in box.
 
     Args:
-        sku_count: Number of distinct SKUs in order
+        item_count: Total number of items (sum of quantities)
 
     Returns:
         Tuple of (box_type, box_multiplier)
     """
-    if sku_count <= 10:
+    if item_count <= 10:
         return "small", 1
-    elif sku_count <= 16:
+    elif item_count <= 16:
         return "large", 1
     else:
-        # Over 16 SKUs = 2 large boxes
+        # Over 16 items = 2 large boxes
         return "large", 2
 
 
-def calculate_packaging_cost(sku_count: int) -> Tuple[float, str, int, Dict[str, float]]:
+def calculate_packaging_cost(item_count: int) -> Tuple[float, str, int, Dict[str, float]]:
     """
     Calculate total packaging cost for an order.
 
     Args:
-        sku_count: Number of distinct SKUs
+        item_count: Total number of items (sum of quantities)
 
     Returns:
         Tuple of (total_cost, box_type, multiplier, breakdown_dict)
     """
-    box_type, multiplier = determine_box_type(sku_count)
+    box_type, multiplier = determine_box_type(item_count)
     base_costs = PACKAGING_COSTS[box_type]
 
     # Apply multiplier to each cost component

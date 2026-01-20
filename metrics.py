@@ -392,8 +392,8 @@ def process_order(
             has_cost=has_cost,
         ))
 
-    # Packaging costs
-    packaging_total, box_type, box_multiplier, packaging_breakdown = calculate_packaging_cost(sku_count)
+    # Packaging costs - based on total units (items in box), not distinct SKUs
+    packaging_total, box_type, box_multiplier, packaging_breakdown = calculate_packaging_cost(total_units)
 
     # Profit calculations
     gross_profit = net_revenue - total_cogs
