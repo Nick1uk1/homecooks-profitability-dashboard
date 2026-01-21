@@ -183,7 +183,9 @@ class AppstleClient:
 
         # Count new subscriptions this week (by createdAt) - count ALL subs created this week
         # regardless of current status (matches Appstle Analytics)
+        # Also track subscription IDs created this week for immediate churn calculation
         new_this_week = 0
+        created_this_week_ids = set()
         for sub in all_subs:
             created_at = sub.get('createdAt')
             if created_at:
@@ -191,13 +193,14 @@ class AppstleClient:
                     created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00')).replace(tzinfo=None)
                     if week_start <= created_dt <= week_end:
                         new_this_week += 1
+                        sub_id = sub.get('id') or sub.get('subscriptionContractId')
+                        if sub_id:
+                            created_this_week_ids.add(sub_id)
                 except (ValueError, TypeError):
                     pass
 
         # Count cancellations this week
-        # Count any subscription with cancelledOn date in this week (regardless of current status,
-        # in case they cancelled and resubscribed)
-        # Also track those who cancelled after only 1 order
+        # Also track immediate churn: subscribers who signed up AND cancelled in the same week
         cancelled_this_week = 0
         cancelled_after_first_this_week = 0
         for sub in all_subs:
@@ -207,14 +210,9 @@ class AppstleClient:
                     cancelled_dt = datetime.fromisoformat(cancelled_on.replace('Z', '+00:00')).replace(tzinfo=None)
                     if week_start <= cancelled_dt <= week_end:
                         cancelled_this_week += 1
-                        # Check if cancelled after only 1 order
-                        order_count = sub.get('totalSuccessfulOrders')
-                        try:
-                            order_count = int(order_count) if order_count is not None else None
-                        except (ValueError, TypeError):
-                            order_count = None
-                        # Only count if we have order data and it's <= 1
-                        if order_count is not None and order_count <= 1:
+                        # Check if this subscription was also created this week (immediate churn)
+                        sub_id = sub.get('id') or sub.get('subscriptionContractId')
+                        if sub_id and sub_id in created_this_week_ids:
                             cancelled_after_first_this_week += 1
                 except (ValueError, TypeError):
                     pass
