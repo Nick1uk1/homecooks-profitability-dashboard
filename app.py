@@ -1988,11 +1988,17 @@ def render_weekly_scorecard():
         profit_delta = ((week_profit / prev_profit) - 1) * 100 if prev_profit > 0 else 0
         st.metric("Profit (Week)", f"£{week_profit:,.0f}", f"{profit_delta:+.1f}% vs LW")
 
-        # Orders - USE ORDER DATE
+        # Orders placed - USE ORDER DATE
         week_orders = d2c_week_revenue['orders']
         prev_orders = d2c_prev_week_revenue['orders']
         orders_delta = week_orders - prev_orders
-        st.metric("Orders (Week)", f"{week_orders:,}", f"{orders_delta:+d} vs LW")
+        st.metric("Orders Placed", f"{week_orders:,}", f"{orders_delta:+d} vs LW")
+
+        # Orders sent out - USE DISPATCH DATE
+        week_sent = d2c_week_metrics['orders']
+        prev_sent = d2c_prev_metrics['orders']
+        sent_delta = week_sent - prev_sent
+        st.metric("Sent Out", f"{week_sent:,}", f"{sent_delta:+d} vs LW")
 
         st.markdown("---")
         # MTD - USE ORDER DATE for revenue
