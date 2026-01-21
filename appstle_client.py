@@ -208,19 +208,13 @@ class AppstleClient:
                     if week_start <= cancelled_dt <= week_end:
                         cancelled_this_week += 1
                         # Check if cancelled after only 1 order
-                        order_count = (
-                            sub.get('orderCount') or
-                            sub.get('billingPolicyOrderCount') or
-                            sub.get('totalOrders') or
-                            sub.get('numberOfOrders') or
-                            sub.get('ordersCount') or
-                            0
-                        )
+                        order_count = sub.get('totalSuccessfulOrders')
                         try:
-                            order_count = int(order_count)
+                            order_count = int(order_count) if order_count is not None else None
                         except (ValueError, TypeError):
-                            order_count = 0
-                        if order_count <= 1:
+                            order_count = None
+                        # Only count if we have order data and it's <= 1
+                        if order_count is not None and order_count <= 1:
                             cancelled_after_first_this_week += 1
                 except (ValueError, TypeError):
                     pass
@@ -295,23 +289,18 @@ def analyze_cancellation_patterns(all_subs: List[Dict]) -> Dict:
     order_distribution = {}
 
     for sub in cancelled_subs:
-        # Try different field names that Appstle might use
-        order_count = (
-            sub.get('orderCount') or
-            sub.get('billingPolicyOrderCount') or
-            sub.get('totalOrders') or
-            sub.get('numberOfOrders') or
-            sub.get('ordersCount') or
-            1  # Default to 1 if not found
-        )
+        # Use totalSuccessfulOrders field from Appstle API
+        order_count = sub.get('totalSuccessfulOrders')
 
         try:
-            order_count = int(order_count)
+            order_count = int(order_count) if order_count is not None else None
         except (ValueError, TypeError):
-            order_count = 1
+            order_count = None
 
-        order_counts.append(order_count)
-        order_distribution[order_count] = order_distribution.get(order_count, 0) + 1
+        # Only include if we have valid order count data
+        if order_count is not None:
+            order_counts.append(order_count)
+            order_distribution[order_count] = order_distribution.get(order_count, 0) + 1
 
     cancelled_after_first = sum(1 for c in order_counts if c <= 1)
     avg_orders = sum(order_counts) / len(order_counts) if order_counts else 0
