@@ -376,6 +376,54 @@ def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]
     return []
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime) -> dict:
+    """
+    Fetch D2C revenue from Shopify based on ORDER DATE (created_at), not dispatch date.
+    Returns revenue metrics for orders placed during the period.
+    """
+    store = os.environ.get("SHOPIFY_STORE_DOMAIN")
+    token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
+    version = os.environ.get("SHOPIFY_API_VERSION", "2024-07")
+
+    if not store or not token:
+        return {'revenue': 0, 'orders': 0, 'discounts': 0, 'gross': 0}
+
+    try:
+        client = ShopifyClient(store, token, version)
+        orders = list(client.get_orders(created_at_min=date_min, created_at_max=date_max, status="any"))
+
+        total_revenue = 0  # current_subtotal_price (net of discounts, excludes shipping)
+        total_gross = 0  # subtotal_price (before discounts)
+        total_discounts = 0
+        order_count = 0
+
+        for order in orders:
+            # Use current_subtotal_price as net revenue (products after discounts, no shipping)
+            current_subtotal = order.get('current_subtotal_price')
+            if current_subtotal is not None:
+                total_revenue += float(current_subtotal)
+            else:
+                # Fallback to subtotal - discounts
+                subtotal = float(order.get('subtotal_price', 0))
+                discounts = float(order.get('total_discounts', 0))
+                total_revenue += subtotal - discounts
+
+            total_gross += float(order.get('subtotal_price', 0))
+            total_discounts += float(order.get('total_discounts', 0))
+            order_count += 1
+
+        return {
+            'revenue': total_revenue,
+            'orders': order_count,
+            'discounts': total_discounts,
+            'gross': total_gross,
+        }
+    except Exception as e:
+        st.error(f"Error fetching Shopify orders: {e}")
+        return {'revenue': 0, 'orders': 0, 'discounts': 0, 'gross': 0}
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_all_retail_orders() -> List[dict]:
     """Fetch ALL historic retail orders from Linnworks (No Shipping Required)."""
@@ -1863,7 +1911,13 @@ def render_weekly_scorecard():
 
     # Fetch all data
     with st.spinner("Loading scorecard data..."):
-        # Fetch D2C data
+        # Fetch D2C REVENUE by ORDER DATE (from Shopify created_at)
+        d2c_week_revenue = fetch_d2c_revenue_by_order_date(week_start_dt, week_end_dt)
+        d2c_prev_week_revenue = fetch_d2c_revenue_by_order_date(prev_week_start_dt, prev_week_end_dt)
+        d2c_mtd_revenue = fetch_d2c_revenue_by_order_date(mtd_start_dt, mtd_end_dt)
+        d2c_lm_revenue = fetch_d2c_revenue_by_order_date(lm_start_dt, lm_end_dt)
+
+        # Fetch D2C PROFIT by DISPATCH DATE (from Linnworks) - needed for profitability
         d2c_week = fetch_d2c_orders_for_period(week_start_dt, week_end_dt)
         d2c_prev_week = fetch_d2c_orders_for_period(prev_week_start_dt, prev_week_end_dt)
         d2c_mtd = fetch_d2c_orders_for_period(mtd_start_dt, mtd_end_dt)
@@ -1922,31 +1976,32 @@ def render_weekly_scorecard():
 
     with col1:
         st.markdown("#### D2C")
-        # Week revenue with delta
-        week_rev = d2c_week_metrics['revenue']
-        prev_rev = d2c_prev_metrics['revenue']
+        # Week revenue with delta - USE ORDER DATE (when order placed)
+        week_rev = d2c_week_revenue['revenue']
+        prev_rev = d2c_prev_week_revenue['revenue']
         delta_pct = ((week_rev / prev_rev) - 1) * 100 if prev_rev > 0 else 0
         st.metric("Revenue (Week)", f"£{week_rev:,.0f}", f"{delta_pct:+.1f}% vs LW")
 
-        # Week profit with delta
+        # Week profit with delta - USE DISPATCH DATE (need COGS/packaging)
         week_profit = d2c_week_metrics['profit']
         prev_profit = d2c_prev_metrics['profit']
         profit_delta = ((week_profit / prev_profit) - 1) * 100 if prev_profit > 0 else 0
         st.metric("Profit (Week)", f"£{week_profit:,.0f}", f"{profit_delta:+.1f}% vs LW")
 
-        # Orders
-        week_orders = d2c_week_metrics['orders']
-        prev_orders = d2c_prev_metrics['orders']
+        # Orders - USE ORDER DATE
+        week_orders = d2c_week_revenue['orders']
+        prev_orders = d2c_prev_week_revenue['orders']
         orders_delta = week_orders - prev_orders
         st.metric("Orders (Week)", f"{week_orders:,}", f"{orders_delta:+d} vs LW")
 
         st.markdown("---")
-        # MTD
-        mtd_rev = d2c_mtd_metrics['revenue']
-        lm_rev = d2c_lm_metrics['revenue']
+        # MTD - USE ORDER DATE for revenue
+        mtd_rev = d2c_mtd_revenue['revenue']
+        lm_rev = d2c_lm_revenue['revenue']
         mtd_delta = ((mtd_rev / lm_rev) - 1) * 100 if lm_rev > 0 else 0
         st.metric("Revenue (MTD)", f"£{mtd_rev:,.0f}", f"{mtd_delta:+.1f}% vs LM")
 
+        # MTD profit - USE DISPATCH DATE
         mtd_profit = d2c_mtd_metrics['profit']
         lm_profit = d2c_lm_metrics['profit']
         mtd_profit_delta = ((mtd_profit / lm_profit) - 1) * 100 if lm_profit > 0 else 0
