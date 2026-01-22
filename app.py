@@ -1610,9 +1610,9 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         # Calculate net revenue including shipping paid by customer
         display_df["net_revenue_total"] = display_df["net_revenue"] + display_df["shipping_paid"]
 
-        # Calculate average COGS per SKU
+        # Calculate average COGS per item
         display_df["avg_cogs"] = display_df.apply(
-            lambda row: row["cogs"] / row["sku_count"] if row["sku_count"] > 0 else 0, axis=1
+            lambda row: row["cogs"] / row["total_units"] if row["total_units"] > 0 else 0, axis=1
         )
 
         display_cols = [
@@ -1648,7 +1648,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 "Net Revenue": st.column_config.NumberColumn(format="£%.2f", help="Net revenue including shipping paid"),
                 "Ship Paid": st.column_config.NumberColumn(format="£%.2f"),
                 "COGS": st.column_config.NumberColumn(format="£%.2f"),
-                "Avg COGS": st.column_config.NumberColumn(format="£%.2f", help="COGS ÷ number of SKUs"),
+                "Avg COGS": st.column_config.NumberColumn(format="£%.2f", help="COGS ÷ number of items"),
                 "Packaging": st.column_config.NumberColumn(format="£%.2f"),
                 "Contribution": st.column_config.NumberColumn(format="£%.2f"),
                 "Margin %": st.column_config.NumberColumn(format="%.1f%%"),
@@ -1663,7 +1663,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 |-----------|-------------|
 | Net Revenue | Gross Item Value - Discounts + Shipping Paid |
 | COGS | Shopify InventoryItem.cost per variant |
-| Avg COGS | COGS ÷ Number of SKUs |
+| Avg COGS | COGS ÷ Number of Items |
 | Packaging | Based on total items in box (see below) |
 | Profit | Revenue - COGS - Packaging |
             """)
