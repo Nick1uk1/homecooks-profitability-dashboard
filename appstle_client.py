@@ -15,6 +15,9 @@ class AppstleClient:
 
     BASE_URL = "https://subscription-admin.appstle.com"
 
+    # Email patterns to exclude (test/developer subscriptions)
+    EXCLUDED_EMAIL_PATTERNS = ['test', 'hyke', 'developers', 'appstle', 'octavian']
+
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.session = requests.Session()
@@ -22,6 +25,15 @@ class AppstleClient:
             'X-API-Key': api_key,
             'Content-Type': 'application/json'
         })
+
+    def _is_test_subscription(self, sub: Dict) -> bool:
+        """Check if subscription is a test/developer subscription based on email."""
+        email = (sub.get('customerEmail') or sub.get('email') or '').lower()
+        return any(pattern in email for pattern in self.EXCLUDED_EMAIL_PATTERNS)
+
+    def _filter_test_subscriptions(self, subs: List[Dict]) -> List[Dict]:
+        """Remove test/developer subscriptions from list."""
+        return [s for s in subs if not self._is_test_subscription(s)]
 
     def get_active_subscriptions(self, page_size: int = 500) -> List[Dict]:
         """Fetch all active subscriptions."""
@@ -97,11 +109,11 @@ class AppstleClient:
         return all_subscriptions
 
     def get_all_subscriptions(self) -> List[Dict]:
-        """Fetch all subscriptions (active and cancelled)."""
+        """Fetch all subscriptions (active and cancelled), excluding test/developer subscriptions."""
         all_subs = []
         all_subs.extend(self.get_active_subscriptions())
         all_subs.extend(self.get_cancelled_subscriptions())
-        return all_subs
+        return self._filter_test_subscriptions(all_subs)
 
     def calculate_historical_high(self, all_subs: List[Dict]) -> tuple:
         """
