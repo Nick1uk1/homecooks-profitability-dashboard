@@ -96,10 +96,37 @@ class AppstleClient:
 
         return all_subscriptions
 
+    def get_skipped_subscriptions(self, page_size: int = 500) -> List[Dict]:
+        """Fetch all skipped subscriptions."""
+        all_subscriptions = []
+        page = 0
+
+        while True:
+            response = self.session.get(
+                f"{self.BASE_URL}/api/external/v2/subscription-contract-details",
+                params={'status': 'SKIPPED', 'size': page_size, 'page': page},
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if not data:
+                break
+
+            all_subscriptions.extend(data)
+
+            if len(data) < page_size:
+                break
+            page += 1
+
+        return all_subscriptions
+
     def get_all_subscriptions(self) -> List[Dict]:
-        """Fetch all subscriptions (active and cancelled)."""
+        """Fetch all subscriptions (active, paused, skipped, and cancelled)."""
         all_subs = []
         all_subs.extend(self.get_active_subscriptions())
+        all_subs.extend(self.get_paused_subscriptions())
+        all_subs.extend(self.get_skipped_subscriptions())
         all_subs.extend(self.get_cancelled_subscriptions())
         return all_subs
 
@@ -177,8 +204,9 @@ class AppstleClient:
         # Fetch all subscriptions
         all_subs = self.get_all_subscriptions()
 
-        # Count active subscriptions
-        active_subs = [s for s in all_subs if s.get('status', '').lower() == 'active']
+        # Count active subscriptions (ACTIVE + PAUSED + SKIPPED per Appstle's definition)
+        active_statuses = {'active', 'paused', 'skipped'}
+        active_subs = [s for s in all_subs if s.get('status', '').lower() in active_statuses]
         active_count = len(active_subs)
 
         # Count new subscriptions this week (by createdAt) - count ALL subs created this week
@@ -375,8 +403,9 @@ def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str
                 except (ValueError, TypeError):
                     pass
 
-        # Active total
-        active_count = len([s for s in all_subs if s.get('status', '').lower() == 'active'])
+        # Active total (ACTIVE + PAUSED + SKIPPED per Appstle's definition)
+        active_statuses = {'active', 'paused', 'skipped'}
+        active_count = len([s for s in all_subs if s.get('status', '').lower() in active_statuses])
 
         return {
             'new': new_count,
