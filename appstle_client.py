@@ -122,10 +122,9 @@ class AppstleClient:
         return all_subscriptions
 
     def get_all_subscriptions(self) -> List[Dict]:
-        """Fetch all subscriptions (active, paused, skipped, and cancelled)."""
+        """Fetch all subscriptions (active, skipped, and cancelled). Paused excluded."""
         all_subs = []
         all_subs.extend(self.get_active_subscriptions())
-        all_subs.extend(self.get_paused_subscriptions())
         all_subs.extend(self.get_skipped_subscriptions())
         all_subs.extend(self.get_cancelled_subscriptions())
         return all_subs
@@ -204,8 +203,8 @@ class AppstleClient:
         # Fetch all subscriptions
         all_subs = self.get_all_subscriptions()
 
-        # Count active subscriptions (ACTIVE + PAUSED + SKIPPED per Appstle's definition)
-        active_statuses = {'active', 'paused', 'skipped'}
+        # Count active subscriptions (ACTIVE + SKIPPED per Appstle's definition)
+        active_statuses = {'active', 'skipped'}
         active_subs = [s for s in all_subs if s.get('status', '').lower() in active_statuses]
         active_count = len(active_subs)
 
@@ -403,8 +402,8 @@ def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str
                 except (ValueError, TypeError):
                     pass
 
-        # Active total (ACTIVE + PAUSED + SKIPPED per Appstle's definition)
-        active_statuses = {'active', 'paused', 'skipped'}
+        # Active total (ACTIVE + SKIPPED per Appstle's definition)
+        active_statuses = {'active', 'skipped'}
         active_count = len([s for s in all_subs if s.get('status', '').lower() in active_statuses])
 
         return {
