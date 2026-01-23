@@ -1207,13 +1207,15 @@ def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> Lis
 def calculate_d2c_period_metrics(orders: List) -> dict:
     """Calculate D2C metrics for a period."""
     if not orders:
-        return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0, 'cogs': 0, 'discounts': 0}
+        return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0, 'cogs': 0, 'discounts': 0, 'units': 0, 'avg_cogs': 0}
 
     total_revenue = sum(o.net_revenue for o in orders)
     total_profit = sum(o.contribution for o in orders)
     total_cogs = sum(o.cogs for o in orders)
     total_discounts = sum(o.total_discounts for o in orders)
+    total_units = sum(o.total_units for o in orders)
     margin_pct = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+    avg_cogs = (total_cogs / total_units) if total_units > 0 else 0
 
     return {
         'revenue': total_revenue,
@@ -1222,6 +1224,8 @@ def calculate_d2c_period_metrics(orders: List) -> dict:
         'orders': len(orders),
         'cogs': total_cogs,
         'discounts': total_discounts,
+        'units': total_units,
+        'avg_cogs': avg_cogs,
     }
 
 
@@ -2011,6 +2015,13 @@ def render_weekly_scorecard():
         prev_sent = d2c_prev_metrics['orders']
         sent_delta = week_sent - prev_sent
         st.metric("Sent Out", f"{week_sent:,}", f"{sent_delta:+d} vs LW")
+
+        # Average COGS per unit
+        week_avg_cogs = d2c_week_metrics['avg_cogs']
+        prev_avg_cogs = d2c_prev_metrics['avg_cogs']
+        avg_cogs_delta = week_avg_cogs - prev_avg_cogs
+        st.metric("Avg COGS", f"£{week_avg_cogs:.2f}", f"£{avg_cogs_delta:+.2f} vs LW",
+                  delta_color="inverse" if avg_cogs_delta > 0 else "normal")
 
         st.markdown("---")
         # MTD - USE ORDER DATE for revenue
