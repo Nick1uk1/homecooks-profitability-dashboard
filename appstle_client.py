@@ -96,36 +96,10 @@ class AppstleClient:
 
         return all_subscriptions
 
-    def get_skipped_subscriptions(self, page_size: int = 500) -> List[Dict]:
-        """Fetch all skipped subscriptions."""
-        all_subscriptions = []
-        page = 0
-
-        while True:
-            response = self.session.get(
-                f"{self.BASE_URL}/api/external/v2/subscription-contract-details",
-                params={'status': 'SKIPPED', 'size': page_size, 'page': page},
-                timeout=30
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            if not data:
-                break
-
-            all_subscriptions.extend(data)
-
-            if len(data) < page_size:
-                break
-            page += 1
-
-        return all_subscriptions
-
     def get_all_subscriptions(self) -> List[Dict]:
-        """Fetch all subscriptions (active, skipped, and cancelled). Paused excluded."""
+        """Fetch all subscriptions (active and cancelled)."""
         all_subs = []
         all_subs.extend(self.get_active_subscriptions())
-        all_subs.extend(self.get_skipped_subscriptions())
         all_subs.extend(self.get_cancelled_subscriptions())
         return all_subs
 
@@ -203,12 +177,12 @@ class AppstleClient:
         # Fetch all subscriptions
         all_subs = self.get_all_subscriptions()
 
-        # Count active subscriptions (ACTIVE only per Appstle's definition)
-        active_subs = [s for s in all_subs if s.get('status', '').upper() == 'ACTIVE']
+        # Count active subscriptions
+        active_subs = [s for s in all_subs if s.get('status', '').lower() == 'active']
         active_count = len(active_subs)
 
-        # Count new subscriptions this week (by createdAt)
-        # Only count subscriptions that are still ACTIVE (not cancelled)
+        # Count new subscriptions this week (by createdAt) - count ALL subs created this week
+        # regardless of current status (matches Appstle Analytics)
         # Also track subscription IDs created this week for immediate churn calculation
         new_this_week = 0
         created_this_week_ids = set()
@@ -218,9 +192,7 @@ class AppstleClient:
                 try:
                     created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00')).replace(tzinfo=None)
                     if week_start <= created_dt <= week_end:
-                        # Only count as "new" if still ACTIVE
-                        if sub.get('status', '').upper() == 'ACTIVE':
-                            new_this_week += 1
+                        new_this_week += 1
                         sub_id = sub.get('id') or sub.get('subscriptionContractId')
                         if sub_id:
                             created_this_week_ids.add(sub_id)
@@ -403,8 +375,8 @@ def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str
                 except (ValueError, TypeError):
                     pass
 
-        # Active total (ACTIVE only per Appstle's definition)
-        active_count = len([s for s in all_subs if s.get('status', '').upper() == 'ACTIVE'])
+        # Active total
+        active_count = len([s for s in all_subs if s.get('status', '').lower() == 'active'])
 
         return {
             'new': new_count,
