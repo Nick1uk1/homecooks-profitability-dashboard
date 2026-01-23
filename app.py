@@ -1330,7 +1330,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 
         # KPI Row 1 - MTD Revenue and Profitability
         st.markdown("### Month to Date Performance")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
 
         col1.metric(
             f"MTD Revenue ({today.strftime('%b')})",
@@ -1352,6 +1352,13 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             "MTD Orders",
             f"{mtd_metrics['orders']:,}",
             f"{mtd_metrics['orders'] - last_month_metrics['orders']:+d} vs Last Month" if last_month_metrics['orders'] > 0 else None
+        )
+        avg_cogs_delta = mtd_metrics['avg_cogs'] - last_month_metrics['avg_cogs']
+        col5.metric(
+            "MTD Avg COGS",
+            f"£{mtd_metrics['avg_cogs']:.2f}",
+            f"£{avg_cogs_delta:+.2f} vs LM" if last_month_metrics['avg_cogs'] > 0 else None,
+            delta_color="inverse" if avg_cogs_delta > 0 else "normal"
         )
 
         # KPI Row 2 - YTD Revenue and Profitability
