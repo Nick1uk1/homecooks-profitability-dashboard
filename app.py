@@ -603,7 +603,7 @@ def get_manual_gopuff_orders() -> List[dict]:
             'ref': 'MANUAL-GP-003',
             'processed': datetime.now().strftime('%Y-%m-%d'),
             'num_items': 1,
-            'qty': 342,  # 342 cases (6 units per case = 2,052 units)
+            'qty': 319,  # 319 cases (6 units per case = 1,914 units)
             'total': 8134.50,
             'skus': 'Various',
         },
