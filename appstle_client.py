@@ -244,7 +244,7 @@ class AppstleClient:
         }
 
 
-@st.cache_data(ttl=300, show_spinner=False)  # 5 minute cache
+@st.cache_data(ttl=86400, show_spinner=False)  # 24 hour cache (refreshes daily at 8am)
 def fetch_appstle_metrics() -> Optional[Dict]:
     """
     Fetch Appstle subscription metrics with caching.
@@ -332,7 +332,7 @@ def is_all_time_high(current_count: int, historical_high: int) -> bool:
     return current_count > historical_high
 
 
-@st.cache_data(ttl=3600, show_spinner=False)  # 1 hour cache
+@st.cache_data(ttl=86400, show_spinner=False)  # 24 hour cache (refreshes daily at 8am)
 def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str) -> Optional[Dict]:
     """
     Fetch subscription metrics for a specific date range.
@@ -399,7 +399,7 @@ def fetch_subscription_metrics_for_period(start_date_str: str, end_date_str: str
         return None
 
 
-@st.cache_data(ttl=3600, show_spinner=False)  # 1 hour cache
+@st.cache_data(ttl=86400, show_spinner=False)  # 24 hour cache (refreshes daily at 8am)
 def fetch_cancellation_analysis() -> Optional[Dict]:
     """
     Fetch and analyze cancellation patterns.
