@@ -131,6 +131,7 @@ def get_customer_order_metrics(customer_ids: tuple) -> dict:
         metrics[cust_id] = {
             'total_orders': total_orders,
             'last_order': last_order,
+            'first_order': order_dates[-1] if order_dates else None,
             'frequency_days': frequency_days
         }
 
@@ -1550,15 +1551,24 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         df = create_orders_dataframe(filtered)
 
         if not df.empty:
-            # Calculate first-time orders: for each customer, their earliest order is their first
-            if "customer_id" in df.columns and "sent_out_at" in df.columns:
-                # Find each customer's first order date
-                customer_first_order = df.groupby("customer_id")["sent_out_at"].min().reset_index()
-                customer_first_order.columns = ["customer_id", "first_order_date"]
-                # Merge back and mark first-time orders
-                df = df.merge(customer_first_order, on="customer_id", how="left")
-                df["is_first_order"] = df["sent_out_at"] == df["first_order_date"]
-                df = df.drop(columns=["first_order_date"])
+            # Fetch customer order history to determine first-time orders
+            if "customer_id" in df.columns:
+                unique_customer_ids = tuple(df["customer_id"].dropna().unique())
+                if unique_customer_ids:
+                    customer_metrics = get_customer_order_metrics(unique_customer_ids)
+                    # Mark first-time orders: where order date matches customer's first order date
+                    df["is_first_order"] = df.apply(
+                        lambda row: (
+                            customer_metrics.get(row["customer_id"], {}).get("first_order") == row["sent_out_at"].date()
+                            if pd.notna(row["customer_id"]) and pd.notna(row["sent_out_at"])
+                            else False
+                        ),
+                        axis=1
+                    )
+                else:
+                    df["is_first_order"] = False
+            else:
+                df["is_first_order"] = False
 
             weekly_kpis = df.groupby("week").agg({
                 "order_id": "count",
