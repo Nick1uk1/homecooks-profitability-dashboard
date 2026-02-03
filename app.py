@@ -1550,6 +1550,16 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         df = create_orders_dataframe(filtered)
 
         if not df.empty:
+            # Calculate first-time orders: for each customer, their earliest order is their first
+            if "customer_id" in df.columns and "sent_out_at" in df.columns:
+                # Find each customer's first order date
+                customer_first_order = df.groupby("customer_id")["sent_out_at"].min().reset_index()
+                customer_first_order.columns = ["customer_id", "first_order_date"]
+                # Merge back and mark first-time orders
+                df = df.merge(customer_first_order, on="customer_id", how="left")
+                df["is_first_order"] = df["sent_out_at"] == df["first_order_date"]
+                df = df.drop(columns=["first_order_date"])
+
             weekly_kpis = df.groupby("week").agg({
                 "order_id": "count",
                 "net_revenue": "sum",
