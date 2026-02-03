@@ -131,7 +131,6 @@ def get_customer_order_metrics(customer_ids: tuple) -> dict:
         metrics[cust_id] = {
             'total_orders': total_orders,
             'last_order': last_order,
-            'first_order': order_dates[-1] if order_dates else None,
             'frequency_days': frequency_days
         }
 
@@ -1551,19 +1550,14 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         df = create_orders_dataframe(filtered)
 
         if not df.empty:
-            # Fetch customer order history to determine first-time orders
+            # Fetch customer order history to determine first-time orders (total_orders == 1)
             if "customer_id" in df.columns:
                 unique_customer_ids = tuple(df["customer_id"].dropna().unique())
                 if unique_customer_ids:
                     customer_metrics = get_customer_order_metrics(unique_customer_ids)
-                    # Mark first-time orders: where order date matches customer's first order date
-                    df["is_first_order"] = df.apply(
-                        lambda row: (
-                            customer_metrics.get(row["customer_id"], {}).get("first_order") == row["sent_out_at"].date()
-                            if pd.notna(row["customer_id"]) and pd.notna(row["sent_out_at"])
-                            else False
-                        ),
-                        axis=1
+                    # First-time order = customer has only 1 order total (shows "-" in Freq column)
+                    df["is_first_order"] = df["customer_id"].apply(
+                        lambda cid: customer_metrics.get(cid, {}).get("total_orders", 1) == 1 if pd.notna(cid) else False
                     )
                 else:
                     df["is_first_order"] = False
