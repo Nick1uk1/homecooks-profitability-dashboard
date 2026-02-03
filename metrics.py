@@ -71,6 +71,9 @@ class OrderMetrics:
     missing_cost_count: int = 0
     missing_cost_skus: List[str] = field(default_factory=list)
 
+    # First-time order flag (customer's first order)
+    is_first_order: bool = False
+
 
 def parse_datetime(dt_string: Optional[str]) -> Optional[datetime]:
     """Parse ISO datetime string to datetime object."""
@@ -305,11 +308,14 @@ def process_order(
 
     # Try customer object first
     customer = order.get("customer") or {}
+    is_first_order = False
     if customer:
         customer_id = customer.get('id')
         first = customer.get('first_name', '') or ''
         last = customer.get('last_name', '') or ''
         customer_name = f"{first} {last}".strip()
+        # Check if this is the customer's first order
+        is_first_order = customer.get('orders_count', 1) == 1
 
     # Try shipping address
     if not customer_name:
@@ -436,6 +442,7 @@ def process_order(
         line_items=processed_line_items,
         missing_cost_count=missing_cost_count,
         missing_cost_skus=missing_cost_skus,
+        is_first_order=is_first_order,
     )
 
 
@@ -537,6 +544,7 @@ def create_orders_dataframe(orders: List[OrderMetrics]) -> pd.DataFrame:
             "contribution_margin_pct": o.contribution_margin_pct,
             "missing_cost_count": o.missing_cost_count,
             "currency": o.currency,
+            "is_first_order": o.is_first_order,
         })
 
     return pd.DataFrame(data)

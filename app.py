@@ -1557,8 +1557,9 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                 "contribution": "sum",
                 "cogs": "sum",
                 "total_units": "sum",
+                "is_first_order": "sum",
             }).reset_index()
-            weekly_kpis.columns = ["Week", "Orders", "Revenue", "Discounts", "Profit", "COGS", "Units"]
+            weekly_kpis.columns = ["Week", "Orders", "Revenue", "Discounts", "Profit", "COGS", "Units", "FirstTimeOrders"]
             weekly_kpis["Margin"] = (weekly_kpis["Profit"] / weekly_kpis["Revenue"] * 100).round(1)
             weekly_kpis["AOV"] = (weekly_kpis["Revenue"] / weekly_kpis["Orders"]).round(2)
             weekly_kpis["Avg COGS"] = (weekly_kpis["COGS"] / weekly_kpis["Units"]).round(2)
@@ -1582,6 +1583,9 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 <td style="text-align:center;"><strong>{row['Orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
 <td style="text-align:center;"><strong>{format_currency(row['Profit'])}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Profit</span></td>
 <td style="text-align:center;"><strong>{row['Margin']:.1f}%</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Margin</span></td>
+</tr>
+<tr>
+<td colspan="3" style="text-align:center; padding-top:8px;"><strong>{int(row['FirstTimeOrders'])}</strong> ({row['FirstTimeOrders']/row['Orders']*100:.0f}%)<br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">First-Time Orders</span></td>
 </tr>
 </table>
 <p style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin:15px 0 0 0; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">AOV: {format_currency(row['AOV'])} &nbsp;|&nbsp; Avg COGS: {format_currency(row['Avg COGS'])} &nbsp;|&nbsp; Discounts: {format_currency(row['Discounts'])}</p>
