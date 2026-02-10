@@ -480,6 +480,10 @@ def fetch_all_retail_orders() -> List[dict]:
                 else:
                     store = "Unknown"
 
+                # Exclude HomeCooks HQ from retail revenue
+                if 'homecooks hq' in store.lower() or 'hchq' in store.lower():
+                    continue
+
                 retail_orders.append({
                     'store': store,
                     'ref': general.get('SecondaryReference', general.get('ReferenceNum', '')),
@@ -563,6 +567,10 @@ def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[d
                     store = name
                 else:
                     store = "Unknown"
+
+                # Exclude HomeCooks HQ from retail revenue
+                if 'homecooks hq' in store.lower() or 'hchq' in store.lower():
+                    continue
 
                 retail_orders.append({
                     'store': store,
