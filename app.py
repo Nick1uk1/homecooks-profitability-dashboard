@@ -584,7 +584,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-001',
-            'processed': '2025-09-15',  # September 2025
+            'processed': '2026-01-18',  # January 2026
             'num_items': 1,
             'qty': 404,  # 404 cases (6 units per case = 2,424 units)
             'total': 10302.00,
@@ -593,7 +593,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-002',
-            'processed': '2025-10-15',  # October 2025
+            'processed': '2026-01-21',  # January 2026
             'num_items': 1,
             'qty': 412,  # 412 cases (revenue £10,506 / £25.50 per case)
             'total': 10506.00,
@@ -602,7 +602,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-003',
-            'processed': '2025-11-15',  # November 2025
+            'processed': '2026-01-23',  # January 2026
             'num_items': 1,
             'qty': 319,  # 319 cases (6 units per case = 1,914 units)
             'total': 8134.50,
@@ -611,7 +611,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-004',
-            'processed': '2025-12-15',  # December 2025
+            'processed': '2026-01-30',  # January 2026
             'num_items': 1,
             'qty': 1081,  # 1,081 cases (6 units per case = 6,486 units)
             'total': 27565.50,
@@ -620,7 +620,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-005',
-            'processed': '2026-02-11',  # February 2026 (current month)
+            'processed': '2026-02-11',  # February 2026
             'num_items': 1,
             'qty': 267,  # 267 cases
             'total': 22044.00,
