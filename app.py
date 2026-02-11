@@ -616,6 +616,15 @@ def get_manual_gopuff_orders() -> List[dict]:
             'total': 27565.50,
             'skus': 'Various',
         },
+        {
+            'store': 'Go Puff (chilled)',
+            'ref': 'MANUAL-GP-005',
+            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'num_items': 1,
+            'qty': 267,  # 267 cases
+            'total': 22044.00,
+            'skus': 'Various',
+        },
     ]
 
 
