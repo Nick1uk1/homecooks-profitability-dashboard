@@ -579,11 +579,12 @@ def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[d
 
 def get_manual_gopuff_orders() -> List[dict]:
     """Return manual Go Puff (chilled) orders to be added to retail data."""
+    # Each order has a specific date (the month it was added)
     return [
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-001',
-            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'processed': '2025-09-15',  # September 2025
             'num_items': 1,
             'qty': 404,  # 404 cases (6 units per case = 2,424 units)
             'total': 10302.00,
@@ -592,7 +593,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-002',
-            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'processed': '2025-10-15',  # October 2025
             'num_items': 1,
             'qty': 412,  # 412 cases (revenue £10,506 / £25.50 per case)
             'total': 10506.00,
@@ -601,7 +602,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-003',
-            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'processed': '2025-11-15',  # November 2025
             'num_items': 1,
             'qty': 319,  # 319 cases (6 units per case = 1,914 units)
             'total': 8134.50,
@@ -610,7 +611,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-004',
-            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'processed': '2025-12-15',  # December 2025
             'num_items': 1,
             'qty': 1081,  # 1,081 cases (6 units per case = 6,486 units)
             'total': 27565.50,
@@ -619,7 +620,7 @@ def get_manual_gopuff_orders() -> List[dict]:
         {
             'store': 'Go Puff (chilled)',
             'ref': 'MANUAL-GP-005',
-            'processed': datetime.now().strftime('%Y-%m-%d'),
+            'processed': '2026-02-11',  # February 2026 (current month)
             'num_items': 1,
             'qty': 267,  # 267 cases
             'total': 22044.00,
@@ -742,17 +743,14 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             last_year_same_day = today.replace(year=today.year-1, day=28)
 
         # Filter data for each period
-        # Exclude manual orders (MANUAL-*) from time-based calculations - they don't have real dates
-        df_real_orders = df_all[~df_all['Reference'].str.startswith('MANUAL-', na=False)]
-
-        df_mtd = df_real_orders[(df_real_orders['Date'] >= current_month_start) & (df_real_orders['Date'] <= today)]
-        df_ytd = df_real_orders[(df_real_orders['Date'] >= current_year_start) & (df_real_orders['Date'] <= today)]
+        df_mtd = df_all[(df_all['Date'] >= current_month_start) & (df_all['Date'] <= today)]
+        df_ytd = df_all[(df_all['Date'] >= current_year_start) & (df_all['Date'] <= today)]
 
         # Last month same period (1st to same day of month)
-        df_last_month = df_real_orders[(df_real_orders['Date'] >= last_month_start) & (df_real_orders['Date'] <= last_month_same_day)]
+        df_last_month = df_all[(df_all['Date'] >= last_month_start) & (df_all['Date'] <= last_month_same_day)]
 
         # Last year same month period (LFL) - 1st to same day of same month last year
-        df_lfl = df_real_orders[(df_real_orders['Date'] >= last_year_month_start) & (df_real_orders['Date'] <= last_year_same_day)]
+        df_lfl = df_all[(df_all['Date'] >= last_year_month_start) & (df_all['Date'] <= last_year_same_day)]
 
         # YTD last year for comparison
         last_year_ytd_start = current_year_start.replace(year=today.year-1)
@@ -760,7 +758,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             last_year_ytd_end = today.replace(year=today.year-1)
         except ValueError:
             last_year_ytd_end = today.replace(year=today.year-1, day=28)
-        df_ytd_lfl = df_real_orders[(df_real_orders['Date'] >= last_year_ytd_start) & (df_real_orders['Date'] <= last_year_ytd_end)]
+        df_ytd_lfl = df_all[(df_all['Date'] >= last_year_ytd_start) & (df_all['Date'] <= last_year_ytd_end)]
 
         # Calculate revenue metrics
         mtd_revenue = df_mtd['Total'].sum()
