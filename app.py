@@ -917,18 +917,16 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
             f"{lfl_profit_data['margin_pct']:.1f}% margin"
         )
 
-        # Monthly breakdown section - using filtered data
+        # Monthly breakdown section - using all data for accurate monthly totals
         st.markdown("---")
         st.markdown("### Revenue by Month")
-        st.caption(f"Showing data for selected period: {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
+        st.caption("All-time monthly breakdown (includes Linnworks + manual orders)")
 
-        if filtered_retail_orders:
-            df_filtered = pd.DataFrame(filtered_retail_orders)
-            df_filtered.columns = ['Store', 'Reference', 'Date', 'Items', 'Qty', 'Total', 'SKUs']
-            df_filtered['Date'] = pd.to_datetime(df_filtered['Date'], errors='coerce')
-            df_filtered['Month'] = df_filtered['Date'].dt.to_period('M')
+        if not df_all.empty:
+            df_monthly = df_all.copy()
+            df_monthly['Month'] = df_monthly['Date'].dt.to_period('M')
 
-            monthly_summary = df_filtered.groupby('Month').agg({
+            monthly_summary = df_monthly.groupby('Month').agg({
                 'Reference': 'count',
                 'Qty': 'sum',
                 'Total': 'sum'
@@ -965,7 +963,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
                     }
                 )
         else:
-            st.info("No retail orders in the selected date range.")
+            st.info("No retail orders found.")
 
         # Store summary section - ALL-TIME DATA
         st.markdown("---")
@@ -1012,14 +1010,15 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
 
         st.caption(f"**{len(store_summary)}** unique store names | ⚠️ indicates possible duplicate store names")
 
-        # Order details - filtered data
-        if filtered_retail_orders:
+        # Order details - filtered by selected date range
+        df_date_filtered = df_all[(df_all['Date'] >= date_min) & (df_all['Date'] <= date_max)]
+        if not df_date_filtered.empty:
             st.markdown("---")
             st.markdown("### Recent Order Details")
             st.caption(f"Orders from {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
 
             # Format date for display
-            df_display = df_filtered.copy()
+            df_display = df_date_filtered.copy()
             df_display['Date'] = df_display['Date'].dt.strftime('%d/%m/%Y')
 
             st.dataframe(
