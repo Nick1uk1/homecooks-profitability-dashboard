@@ -490,6 +490,9 @@ def fetch_all_retail_orders() -> List[dict]:
                     'skus': ', '.join(set(item.get('SKU', '') for item in items[:5])),
                 })
 
+    # Filter out test orders (HomeCooks HQ)
+    retail_orders = [o for o in retail_orders if 'homecooks hq' not in o.get('store', '').lower()]
+
     return retail_orders
 
 
@@ -573,6 +576,9 @@ def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[d
                     'total': float(totals.get('TotalCharge', 0)),
                     'skus': ', '.join(set(item.get('SKU', '') for item in items[:5])),
                 })
+
+    # Filter out test orders (HomeCooks HQ)
+    retail_orders = [o for o in retail_orders if 'homecooks hq' not in o.get('store', '').lower()]
 
     return retail_orders
 
