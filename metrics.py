@@ -4,7 +4,7 @@ Uses Linnworks for dispatch dates (when orders were actually sent out).
 """
 
 from typing import List, Dict, Optional, Tuple, Any
-from datetime import datetime
+from datetime import datetime, date
 from dataclasses import dataclass, field
 from dateutil import parser as date_parser
 import pandas as pd
@@ -297,6 +297,9 @@ def process_order(
 
     # Weekday and week from sent out date
     sent_out_weekday = sent_out_at.strftime("%A")
+    # W/C 2 Mar 2026: Thursday orders were dispatched on Friday 6th instead
+    if sent_out_at.date() == date(2026, 3, 6):
+        sent_out_weekday = "Thursday"
     sent_out_week = get_iso_week(sent_out_at)
 
     # Customer info - try multiple sources
