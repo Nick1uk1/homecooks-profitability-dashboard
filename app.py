@@ -2281,7 +2281,8 @@ def render_gopuff_dashboard():
             else:
                 total_skus = skus_with_sales = skus_zero_sales = total_units_today = 0
 
-            # Add chilled SKUs to totals
+            # Calculate chilled split (these products are already in the frozen raw data,
+            # so don't add to totals - just track for the frozen/chilled breakdown)
             chilled_today = 0
             chilled_skus_count = 0
             chilled_with_sales = 0
@@ -2289,7 +2290,6 @@ def render_gopuff_dashboard():
                 try:
                     chilled_date_cols = [col for col in chilled_df.columns if '/' in str(col)]
                     if chilled_date_cols:
-                        # Parse dates flexibly
                         def parse_chilled_date(col):
                             parts = str(col).split('/')
                             if len(parts) == 3:
@@ -2303,11 +2303,6 @@ def render_gopuff_dashboard():
                         chilled_today = int(chilled_sales.sum())
                         chilled_skus_count = len(chilled_df)
                         chilled_with_sales = int((chilled_sales > 0).sum())
-                        # Add to totals
-                        total_units_today += chilled_today
-                        total_skus += chilled_skus_count
-                        skus_with_sales += chilled_with_sales
-                        skus_zero_sales = total_skus - skus_with_sales
                 except:
                     pass
 
