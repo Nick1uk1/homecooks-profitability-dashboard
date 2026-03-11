@@ -212,7 +212,7 @@ class AppstleClient:
                     pass
 
         # Count cancellations this week
-        # Also track immediate churn: subscribers who signed up AND cancelled in the same week
+        # Track "cancelled after 1st order": cancelled this week with totalSuccessfulOrders <= 1
         cancelled_this_week = 0
         cancelled_after_first_this_week = 0
         for sub in all_subs:
@@ -222,9 +222,13 @@ class AppstleClient:
                     cancelled_dt = datetime.fromisoformat(cancelled_on.replace('Z', '+00:00')).replace(tzinfo=None)
                     if week_start <= cancelled_dt <= week_end:
                         cancelled_this_week += 1
-                        # Check if this subscription was also created this week (immediate churn)
-                        sub_id = sub.get('id') or sub.get('subscriptionContractId')
-                        if sub_id and sub_id in created_this_week_ids:
+                        # Check if they only had 1 or fewer successful orders
+                        total_orders = sub.get('totalSuccessfulOrders')
+                        try:
+                            total_orders = int(total_orders) if total_orders is not None else None
+                        except (ValueError, TypeError):
+                            total_orders = None
+                        if total_orders is not None and total_orders <= 1:
                             cancelled_after_first_this_week += 1
                 except (ValueError, TypeError):
                     pass
