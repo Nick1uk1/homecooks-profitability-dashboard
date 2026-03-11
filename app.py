@@ -305,7 +305,7 @@ def format_currency(value: float) -> str:
     return f"£{value:,.2f}"
 
 
-DEPHNA_MONTHLY_COST = 7500  # £7,500/month average
+DEPHNA_MONTHLY_COST = 7000  # £7,000/month average
 
 
 def dephna_cost_for_period(start_date, end_date) -> float:
