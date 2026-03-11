@@ -2113,14 +2113,6 @@ def render_weekly_scorecard():
         profit_delta = ((week_profit / prev_profit) - 1) * 100 if prev_profit > 0 else 0
         st.metric("Profit (Week)", f"£{week_profit:,.0f}", f"{profit_delta:+.1f}% vs LW")
 
-        # Operating profit (after Dephna)
-        week_dephna = dephna_cost_for_period(week_start_dt, week_end_dt)
-        prev_week_dephna = dephna_cost_for_period(prev_week_start_dt, prev_week_end_dt)
-        week_op = week_profit - week_dephna
-        prev_op = prev_profit - prev_week_dephna
-        op_delta = ((week_op / prev_op) - 1) * 100 if prev_op != 0 else 0
-        st.metric("Operating Profit (Week)", f"£{week_op:,.0f}", f"{op_delta:+.1f}% vs LW (Dephna: £{week_dephna:,.0f})")
-
         # Orders placed - USE ORDER DATE
         week_orders = d2c_week_revenue['orders']
         prev_orders = d2c_prev_week_revenue['orders']
