@@ -1410,11 +1410,12 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         lm_op_profit = last_month_metrics['profit'] - lm_dephna
         op_profit_delta = ((mtd_op_profit / lm_op_profit) - 1) * 100 if lm_op_profit != 0 else 0
         col3.metric(
-            f"MTD Operating Profit",
+            f"MTD Op. Profit",
             format_currency(mtd_op_profit),
-            f"{op_profit_delta:+.1f}% vs LM (Dephna: {format_currency(mtd_dephna)})",
+            f"{op_profit_delta:+.1f}% vs LM",
             delta_color="normal" if mtd_op_profit >= lm_op_profit else "inverse"
         )
+        col3.caption(f"Dephna: {format_currency(mtd_dephna)}")
         col4.metric(
             "MTD Margin",
             f"{mtd_metrics['margin_pct']:.1f}%",
@@ -1452,10 +1453,10 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         ytd_dephna = dephna_cost_for_period(current_year_start, today)
         ytd_op_profit = ytd_metrics['profit'] - ytd_dephna
         col3.metric(
-            "YTD Operating Profit",
+            "YTD Op. Profit",
             format_currency(ytd_op_profit),
-            f"Dephna: {format_currency(ytd_dephna)}"
         )
+        col3.caption(f"Dephna: {format_currency(ytd_dephna)}")
         col4.metric(
             "YTD Margin",
             f"{ytd_metrics['margin_pct']:.1f}%",
@@ -2149,7 +2150,8 @@ def render_weekly_scorecard():
         sc_mtd_start = last_sunday.replace(day=1)
         sc_mtd_dephna = dephna_cost_for_period(sc_mtd_start, last_sunday)
         sc_mtd_op = mtd_profit - sc_mtd_dephna
-        st.metric("Operating Profit (MTD)", f"£{sc_mtd_op:,.0f}", f"Dephna: £{sc_mtd_dephna:,.0f}")
+        st.metric("Op. Profit (MTD)", f"£{sc_mtd_op:,.0f}")
+        st.caption(f"Dephna: £{sc_mtd_dephna:,.0f}")
 
     with col2:
         st.markdown("#### Retail")
