@@ -666,6 +666,15 @@ def get_manual_gopuff_orders() -> List[dict]:
             'total': 22044.00,
             'skus': 'Various',
         },
+        {
+            'store': 'Go Puff (chilled)',
+            'ref': 'MANUAL-GP-006',
+            'processed': '2026-03-11',  # March 2026
+            'num_items': 1,
+            'qty': 864,  # 864 cases (£22,044 / £25.50 per case)
+            'total': 22044.00,
+            'skus': 'Various',
+        },
     ]
 
 
