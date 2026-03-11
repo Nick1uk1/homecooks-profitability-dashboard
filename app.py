@@ -305,6 +305,40 @@ def format_currency(value: float) -> str:
     return f"£{value:,.2f}"
 
 
+DEPHNA_MONTHLY_COST = 7500  # £7,500/month average
+
+
+def dephna_cost_for_period(start_date, end_date) -> float:
+    """Calculate Dephna operating cost for a date range using daily rate per month."""
+    import calendar
+    total = 0.0
+    current = start_date if hasattr(start_date, 'month') else start_date.date()
+    end = end_date if hasattr(end_date, 'month') else end_date.date()
+    if hasattr(current, 'hour'):
+        current = current.date() if hasattr(current, 'date') else current
+    if hasattr(end, 'hour'):
+        end = end.date() if hasattr(end, 'date') else end
+    from datetime import date as date_cls
+    if isinstance(current, datetime):
+        current = current.date()
+    if isinstance(end, datetime):
+        end = end.date()
+    while current <= end:
+        days_in_month = calendar.monthrange(current.year, current.month)[1]
+        daily_rate = DEPHNA_MONTHLY_COST / days_in_month
+        # How many days of this month are in our range?
+        month_end = date_cls(current.year, current.month, days_in_month)
+        period_end = min(end, month_end)
+        days = (period_end - current).days + 1
+        total += daily_rate * days
+        # Move to first day of next month
+        if current.month == 12:
+            current = date_cls(current.year + 1, 1, 1)
+        else:
+            current = date_cls(current.year, current.month + 1, 1)
+    return total
+
+
 def get_week_date_range(iso_week: str) -> str:
     try:
         year, week = iso_week.split("-W")
@@ -1357,7 +1391,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 
         # KPI Row 1 - MTD Revenue and Profitability
         st.markdown("### Month to Date Performance")
-        col1, col2, col3, col4, col5 = st.columns(5)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
 
         col1.metric(
             f"MTD Revenue ({today.strftime('%b')})",
@@ -1370,18 +1404,29 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             f"{vs_last_month_profit_pct:+.1f}% vs Last Month" if last_month_metrics['profit'] > 0 else None,
             delta_color="normal" if vs_last_month_profit >= 0 else "inverse"
         )
+        mtd_dephna = dephna_cost_for_period(current_month_start, today)
+        mtd_op_profit = mtd_metrics['profit'] - mtd_dephna
+        lm_dephna = dephna_cost_for_period(last_month_start, last_month_same_day)
+        lm_op_profit = last_month_metrics['profit'] - lm_dephna
+        op_profit_delta = ((mtd_op_profit / lm_op_profit) - 1) * 100 if lm_op_profit != 0 else 0
         col3.metric(
+            f"MTD Operating Profit",
+            format_currency(mtd_op_profit),
+            f"{op_profit_delta:+.1f}% vs LM (Dephna: {format_currency(mtd_dephna)})",
+            delta_color="normal" if mtd_op_profit >= lm_op_profit else "inverse"
+        )
+        col4.metric(
             "MTD Margin",
             f"{mtd_metrics['margin_pct']:.1f}%",
             f"{mtd_metrics['margin_pct'] - last_month_metrics['margin_pct']:+.1f}pp" if last_month_metrics['margin_pct'] > 0 else None
         )
-        col4.metric(
+        col5.metric(
             "MTD Orders",
             f"{mtd_metrics['orders']:,}",
             f"{mtd_metrics['orders'] - last_month_metrics['orders']:+d} vs Last Month" if last_month_metrics['orders'] > 0 else None
         )
         avg_cogs_delta = mtd_metrics['avg_cogs'] - last_month_metrics['avg_cogs']
-        col5.metric(
+        col6.metric(
             "MTD Avg COGS",
             f"£{mtd_metrics['avg_cogs']:.2f}",
             f"£{avg_cogs_delta:+.2f} vs LM" if last_month_metrics['avg_cogs'] > 0 else None,
@@ -1390,7 +1435,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 
         # KPI Row 2 - YTD Revenue and Profitability
         st.markdown("### Year to Date Performance")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
 
         col1.metric(
             "YTD Revenue",
@@ -1404,12 +1449,19 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             f"{ytd_vs_lfl_profit_pct:+.1f}% vs LFL" if ytd_lfl_metrics['profit'] > 0 else None,
             delta_color="normal" if ytd_vs_lfl_profit >= 0 else "inverse"
         )
+        ytd_dephna = dephna_cost_for_period(current_year_start, today)
+        ytd_op_profit = ytd_metrics['profit'] - ytd_dephna
         col3.metric(
+            "YTD Operating Profit",
+            format_currency(ytd_op_profit),
+            f"Dephna: {format_currency(ytd_dephna)}"
+        )
+        col4.metric(
             "YTD Margin",
             f"{ytd_metrics['margin_pct']:.1f}%",
             f"{ytd_metrics['margin_pct'] - ytd_lfl_metrics['margin_pct']:+.1f}pp" if ytd_lfl_metrics['margin_pct'] > 0 else None
         )
-        col4.metric(
+        col5.metric(
             "YTD Orders",
             f"{ytd_metrics['orders']:,}"
         )
@@ -2061,6 +2113,14 @@ def render_weekly_scorecard():
         profit_delta = ((week_profit / prev_profit) - 1) * 100 if prev_profit > 0 else 0
         st.metric("Profit (Week)", f"£{week_profit:,.0f}", f"{profit_delta:+.1f}% vs LW")
 
+        # Operating profit (after Dephna)
+        week_dephna = dephna_cost_for_period(week_start_dt, week_end_dt)
+        prev_week_dephna = dephna_cost_for_period(prev_week_start_dt, prev_week_end_dt)
+        week_op = week_profit - week_dephna
+        prev_op = prev_profit - prev_week_dephna
+        op_delta = ((week_op / prev_op) - 1) * 100 if prev_op != 0 else 0
+        st.metric("Operating Profit (Week)", f"£{week_op:,.0f}", f"{op_delta:+.1f}% vs LW (Dephna: £{week_dephna:,.0f})")
+
         # Orders placed - USE ORDER DATE
         week_orders = d2c_week_revenue['orders']
         prev_orders = d2c_prev_week_revenue['orders']
@@ -2092,6 +2152,12 @@ def render_weekly_scorecard():
         lm_profit = d2c_lm_metrics['profit']
         mtd_profit_delta = ((mtd_profit / lm_profit) - 1) * 100 if lm_profit > 0 else 0
         st.metric("Profit (MTD)", f"£{mtd_profit:,.0f}", f"{mtd_profit_delta:+.1f}% vs LM")
+
+        # MTD Operating Profit
+        sc_mtd_start = last_sunday.replace(day=1)
+        sc_mtd_dephna = dephna_cost_for_period(sc_mtd_start, last_sunday)
+        sc_mtd_op = mtd_profit - sc_mtd_dephna
+        st.metric("Operating Profit (MTD)", f"£{sc_mtd_op:,.0f}", f"Dephna: £{sc_mtd_dephna:,.0f}")
 
     with col2:
         st.markdown("#### Retail")
