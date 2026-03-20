@@ -234,6 +234,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+_APP_VERSION = "v2.1"  # gross/net revenue update
 
 # Custom CSS with HomeCooks branding
 st.markdown(f"""
@@ -1304,6 +1305,7 @@ def calculate_d2c_period_metrics(orders: List) -> dict:
         return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0, 'cogs': 0, 'discounts': 0, 'units': 0, 'avg_cogs': 0}
 
     total_revenue = sum(o.net_revenue for o in orders)
+    total_gross = sum(o.gross_item_value + o.shipping_paid for o in orders)
     total_profit = sum(o.contribution for o in orders)
     total_cogs = sum(o.cogs for o in orders)
     total_discounts = sum(o.total_discounts for o in orders)
@@ -1313,6 +1315,8 @@ def calculate_d2c_period_metrics(orders: List) -> dict:
 
     return {
         'revenue': total_revenue,
+        'net_revenue': total_revenue,
+        'gross_revenue': total_gross,
         'profit': total_profit,
         'margin_pct': margin_pct,
         'orders': len(orders),
@@ -1426,8 +1430,16 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         st.markdown("### Month to Date Performance")
         col1, col2, col3, col4, col5, col6 = st.columns(6)
 
+        mtd_gross_rev = mtd_metrics.get('gross_revenue', mtd_metrics['revenue'])
+        lm_gross_rev = last_month_metrics.get('gross_revenue', last_month_metrics['revenue'])
+        vs_lm_gross_pct = ((mtd_gross_rev / lm_gross_rev) - 1) * 100 if lm_gross_rev > 0 else 0
         col1.metric(
-            f"MTD Revenue ({today.strftime('%b')})",
+            f"Gross Revenue ({today.strftime('%b')})",
+            format_currency(mtd_gross_rev),
+            f"{vs_lm_gross_pct:+.1f}% vs Last Month" if lm_gross_rev > 0 else None
+        )
+        col1.metric(
+            f"Net Revenue ({today.strftime('%b')})",
             format_currency(mtd_metrics['revenue']),
             f"{vs_last_month_rev_pct:+.1f}% vs Last Month" if last_month_metrics['revenue'] > 0 else None
         )
