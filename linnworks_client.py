@@ -14,9 +14,9 @@ class LinnworksClient:
     """Client for Linnworks API to get processed order dispatch dates."""
 
     def __init__(self):
-        self.app_id = os.environ.get("LINNWORKS_APP_ID", "51e2b5ee-bb88-4a20-b0d6-72b74f3e9642")
-        self.app_secret = os.environ.get("LINNWORKS_APP_SECRET", "5daa226d-bb00-43f9-b26c-dfb755323246")
-        self.install_token = os.environ.get("LINNWORKS_INSTALL_TOKEN", "1b385b6dee2b50f8717b0520d06f266e")
+        self.app_id = os.environ.get("LINNWORKS_APP_ID", "")
+        self.app_secret = os.environ.get("LINNWORKS_APP_SECRET", "")
+        self.install_token = os.environ.get("LINNWORKS_INSTALL_TOKEN", "")
 
         self.session_token = None
         self.server = None
