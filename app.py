@@ -5,6 +5,14 @@ Uses Linnworks for accurate dispatch dates (Monday/Thursday)
 
 import os
 import base64
+
+# Load .env file for local development
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta, date
