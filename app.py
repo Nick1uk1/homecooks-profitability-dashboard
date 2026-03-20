@@ -427,30 +427,54 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime) -> d
         client = ShopifyClient(store, token, version)
         orders = list(client.get_orders(created_at_min=date_min, created_at_max=date_max, status="any"))
 
-        total_revenue = 0  # current_subtotal_price (net of discounts, excludes shipping)
-        total_gross = 0  # subtotal_price (before discounts)
+        total_net = 0      # current_subtotal_price (after discounts & refunds, no shipping)
+        total_gross = 0    # subtotal_price + shipping (before discounts/refunds)
         total_discounts = 0
+        total_refunds = 0
+        total_shipping = 0
         order_count = 0
 
         for order in orders:
-            # Use current_subtotal_price as net revenue (products after discounts, no shipping)
+            # Net revenue: current_subtotal_price (after discounts AND refunds, no shipping)
             current_subtotal = order.get('current_subtotal_price')
             if current_subtotal is not None:
-                total_revenue += float(current_subtotal)
+                total_net += float(current_subtotal)
             else:
-                # Fallback to subtotal - discounts
                 subtotal = float(order.get('subtotal_price', 0))
                 discounts = float(order.get('total_discounts', 0))
-                total_revenue += subtotal - discounts
+                total_net += subtotal - discounts
 
-            total_gross += float(order.get('subtotal_price', 0))
+            # Shipping
+            shipping_set = order.get('total_shipping_price_set')
+            if shipping_set and isinstance(shipping_set, dict):
+                shop_money = shipping_set.get('shop_money', {})
+                shipping = float(shop_money.get('amount', 0))
+            else:
+                shipping = 0
+            total_shipping += shipping
+
+            # Gross revenue: product subtotal + shipping (before discounts/refunds)
+            subtotal = float(order.get('subtotal_price', 0))
+            total_gross += subtotal + shipping
+
+            # Track discounts and refund impact
             total_discounts += float(order.get('total_discounts', 0))
+            # Refund amount = original subtotal - current subtotal (what was refunded)
+            original_subtotal = float(order.get('subtotal_price', 0)) - float(order.get('total_discounts', 0))
+            current = float(order.get('current_subtotal_price', original_subtotal))
+            if current < original_subtotal:
+                total_refunds += original_subtotal - current
+
             order_count += 1
 
         return {
-            'revenue': total_revenue,
+            'revenue': total_net,       # kept for backwards compatibility
+            'net_revenue': total_net,    # after discounts, refunds, no shipping
+            'gross_revenue': total_gross, # products + shipping, before discounts/refunds
             'orders': order_count,
             'discounts': total_discounts,
+            'refunds': total_refunds,
+            'shipping': total_shipping,
             'gross': total_gross,
         }
     except Exception as e:
@@ -2144,10 +2168,15 @@ def render_weekly_scorecard():
 
         st.markdown("---")
         # MTD - USE ORDER DATE for revenue
-        mtd_rev = d2c_mtd_revenue['revenue']
-        lm_rev = d2c_lm_revenue['revenue']
-        mtd_delta = ((mtd_rev / lm_rev) - 1) * 100 if lm_rev > 0 else 0
-        st.metric("Revenue (MTD)", f"£{mtd_rev:,.0f}", f"{mtd_delta:+.1f}% vs LM")
+        mtd_gross = d2c_mtd_revenue.get('gross_revenue', d2c_mtd_revenue.get('gross', 0))
+        lm_gross = d2c_lm_revenue.get('gross_revenue', d2c_lm_revenue.get('gross', 0))
+        mtd_gross_delta = ((mtd_gross / lm_gross) - 1) * 100 if lm_gross > 0 else 0
+        st.metric("Gross Revenue (MTD)", f"£{mtd_gross:,.0f}", f"{mtd_gross_delta:+.1f}% vs LM")
+
+        mtd_net = d2c_mtd_revenue.get('net_revenue', d2c_mtd_revenue['revenue'])
+        lm_net = d2c_lm_revenue.get('net_revenue', d2c_lm_revenue['revenue'])
+        mtd_net_delta = ((mtd_net / lm_net) - 1) * 100 if lm_net > 0 else 0
+        st.metric("Net Revenue (MTD)", f"£{mtd_net:,.0f}", f"{mtd_net_delta:+.1f}% vs LM")
 
         # MTD profit - USE DISPATCH DATE
         mtd_profit = d2c_mtd_metrics['profit']
