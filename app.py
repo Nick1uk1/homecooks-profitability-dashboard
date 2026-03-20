@@ -454,9 +454,8 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime) -> d
                 shipping = 0
             total_shipping += shipping
 
-            # Gross revenue: product subtotal + shipping (before discounts/refunds)
-            subtotal = float(order.get('subtotal_price', 0))
-            total_gross += subtotal + shipping
+            # Gross revenue: total_price from Shopify (what customer paid = products after discounts + shipping + tax)
+            total_gross += float(order.get('total_price', 0))
 
             # Track discounts and refund impact
             total_discounts += float(order.get('total_discounts', 0))
@@ -1305,7 +1304,7 @@ def calculate_d2c_period_metrics(orders: List) -> dict:
         return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0, 'cogs': 0, 'discounts': 0, 'units': 0, 'avg_cogs': 0}
 
     total_revenue = sum(o.net_revenue for o in orders)
-    total_gross = sum(o.net_revenue + o.shipping_paid for o in orders)  # what customer paid (products after discounts + shipping)
+    total_gross = sum(o.net_revenue + o.shipping_paid for o in orders)  # what customer paid (products after discounts + shipping) — matches Shopify total_price
     total_profit = sum(o.contribution for o in orders)
     total_cogs = sum(o.cogs for o in orders)
     total_discounts = sum(o.total_discounts for o in orders)
