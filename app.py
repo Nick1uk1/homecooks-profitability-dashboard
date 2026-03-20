@@ -412,7 +412,7 @@ def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime) -> dict:
+def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cache_v: int = 2) -> dict:
     """
     Fetch D2C revenue from Shopify based on ORDER DATE (created_at), not dispatch date.
     Returns revenue metrics for orders placed during the period.
