@@ -1401,6 +1401,10 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         lfl_metrics = calculate_d2c_period_metrics(lfl_orders)
         ytd_lfl_metrics = calculate_d2c_period_metrics(ytd_lfl_orders)
 
+        # Fetch gross revenue from Shopify (order date, total_price, excludes refunds)
+        shopify_mtd = fetch_d2c_revenue_by_order_date(current_month_start, today)
+        shopify_lm = fetch_d2c_revenue_by_order_date(last_month_start, last_month_same_day)
+
         # Calculate variances
         vs_last_month_rev = mtd_metrics['revenue'] - last_month_metrics['revenue']
         vs_last_month_rev_pct = ((mtd_metrics['revenue'] / last_month_metrics['revenue'] - 1) * 100) if last_month_metrics['revenue'] > 0 else 0
@@ -1429,18 +1433,23 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         st.markdown("### Month to Date Performance")
         col1, col2, col3, col4, col5, col6 = st.columns(6)
 
-        mtd_gross_rev = mtd_metrics.get('gross_revenue', mtd_metrics['revenue'])
-        lm_gross_rev = last_month_metrics.get('gross_revenue', last_month_metrics['revenue'])
+        # Gross revenue from Shopify (total_price = what customer paid, excludes refunded amounts)
+        mtd_gross_rev = shopify_mtd.get('gross_revenue', 0)
+        lm_gross_rev = shopify_lm.get('gross_revenue', 0)
         vs_lm_gross_pct = ((mtd_gross_rev / lm_gross_rev) - 1) * 100 if lm_gross_rev > 0 else 0
         col1.metric(
             f"Gross Revenue ({today.strftime('%b')})",
             format_currency(mtd_gross_rev),
             f"{vs_lm_gross_pct:+.1f}% vs Last Month" if lm_gross_rev > 0 else None
         )
+        # Net revenue from Shopify (products after discounts & refunds, no shipping)
+        mtd_net_rev = shopify_mtd.get('net_revenue', 0)
+        lm_net_rev = shopify_lm.get('net_revenue', 0)
+        vs_lm_net_pct = ((mtd_net_rev / lm_net_rev) - 1) * 100 if lm_net_rev > 0 else 0
         col1.metric(
             f"Net Revenue ({today.strftime('%b')})",
-            format_currency(mtd_metrics['revenue']),
-            f"{vs_last_month_rev_pct:+.1f}% vs Last Month" if last_month_metrics['revenue'] > 0 else None
+            format_currency(mtd_net_rev),
+            f"{vs_lm_net_pct:+.1f}% vs Last Month" if lm_net_rev > 0 else None
         )
         col2.metric(
             f"MTD Profit ({today.strftime('%b')})",
