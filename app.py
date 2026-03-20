@@ -1305,7 +1305,7 @@ def calculate_d2c_period_metrics(orders: List) -> dict:
         return {'revenue': 0, 'profit': 0, 'margin_pct': 0, 'orders': 0, 'cogs': 0, 'discounts': 0, 'units': 0, 'avg_cogs': 0}
 
     total_revenue = sum(o.net_revenue for o in orders)
-    total_gross = sum(o.gross_item_value + o.shipping_paid for o in orders)
+    total_gross = sum(o.net_revenue + o.shipping_paid for o in orders)  # what customer paid (products after discounts + shipping)
     total_profit = sum(o.contribution for o in orders)
     total_cogs = sum(o.cogs for o in orders)
     total_discounts = sum(o.total_discounts for o in orders)
