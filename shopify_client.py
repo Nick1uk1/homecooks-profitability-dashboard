@@ -111,6 +111,7 @@ class ShopifyClient:
         created_at_max: Optional[datetime] = None,
         status: str = "any",
         limit: int = 250,
+        financial_status: Optional[str] = None,
     ) -> Generator[dict, None, None]:
         """
         Fetch orders with pagination.
@@ -130,13 +131,16 @@ class ShopifyClient:
             "fields": "id,name,created_at,processed_at,total_price,total_discounts,"
                       "subtotal_price,total_shipping_price_set,total_tax,currency,"
                       "current_subtotal_price,current_total_discounts,line_items,fulfillments,"
-                      "discount_codes,discount_applications,customer,shipping_address,billing_address",
+                      "discount_codes,discount_applications,customer,shipping_address,billing_address,"
+                      "financial_status",
         }
 
         if created_at_min:
             params["created_at_min"] = created_at_min.isoformat()
         if created_at_max:
             params["created_at_max"] = created_at_max.isoformat()
+        if financial_status:
+            params["financial_status"] = financial_status
 
         yield from self._paginate("orders.json", params, "orders")
 
