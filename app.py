@@ -444,8 +444,8 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
         order_count = 0
 
         for order in orders:
-            # Gross sales = subtotal_price (line item prices before discounts)
-            total_gross_sales += float(order.get('subtotal_price', 0))
+            # Gross sales = subtotal_price + discounts (line item prices BEFORE discounts)
+            total_gross_sales += float(order.get('subtotal_price', 0)) + float(order.get('total_discounts', 0))
 
             # Net sales = current_subtotal_price (after discounts AND refunds, no shipping)
             current_subtotal = order.get('current_subtotal_price')

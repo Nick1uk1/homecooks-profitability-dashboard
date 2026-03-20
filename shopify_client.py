@@ -130,7 +130,8 @@ class ShopifyClient:
             "fields": "id,name,created_at,processed_at,total_price,total_discounts,"
                       "subtotal_price,total_shipping_price_set,total_tax,currency,"
                       "current_subtotal_price,current_total_discounts,line_items,fulfillments,"
-                      "discount_codes,discount_applications,customer,shipping_address,billing_address",
+                      "discount_codes,discount_applications,customer,shipping_address,billing_address,"
+                      "financial_status",
         }
 
         if created_at_min:
