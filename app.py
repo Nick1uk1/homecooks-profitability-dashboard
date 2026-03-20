@@ -428,54 +428,47 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime) -> d
         client = ShopifyClient(store, token, version)
         orders = list(client.get_orders(created_at_min=date_min, created_at_max=date_max, status="any"))
 
-        total_net = 0      # current_subtotal_price (after discounts & refunds, no shipping)
-        total_gross = 0    # subtotal_price + shipping (before discounts/refunds)
+        total_gross_sales = 0   # subtotal_price (line items before discounts) = Shopify "Gross sales"
+        total_net_sales = 0     # current_subtotal_price (after discounts & refunds) = Shopify "Net sales"
+        total_total_sales = 0   # total_price (net + shipping + tax) = Shopify "Total sales"
         total_discounts = 0
-        total_refunds = 0
         total_shipping = 0
         order_count = 0
 
         for order in orders:
-            # Net revenue: current_subtotal_price (after discounts AND refunds, no shipping)
+            # Gross sales = subtotal_price (line item prices before discounts)
+            total_gross_sales += float(order.get('subtotal_price', 0))
+
+            # Net sales = current_subtotal_price (after discounts AND refunds, no shipping)
             current_subtotal = order.get('current_subtotal_price')
             if current_subtotal is not None:
-                total_net += float(current_subtotal)
+                total_net_sales += float(current_subtotal)
             else:
                 subtotal = float(order.get('subtotal_price', 0))
                 discounts = float(order.get('total_discounts', 0))
-                total_net += subtotal - discounts
+                total_net_sales += subtotal - discounts
+
+            # Total sales = total_price (what customer paid)
+            total_total_sales += float(order.get('total_price', 0))
 
             # Shipping
             shipping_set = order.get('total_shipping_price_set')
             if shipping_set and isinstance(shipping_set, dict):
                 shop_money = shipping_set.get('shop_money', {})
-                shipping = float(shop_money.get('amount', 0))
-            else:
-                shipping = 0
-            total_shipping += shipping
+                total_shipping += float(shop_money.get('amount', 0))
 
-            # Gross revenue: total_price from Shopify (what customer paid = products after discounts + shipping + tax)
-            total_gross += float(order.get('total_price', 0))
-
-            # Track discounts and refund impact
             total_discounts += float(order.get('total_discounts', 0))
-            # Refund amount = original subtotal - current subtotal (what was refunded)
-            original_subtotal = float(order.get('subtotal_price', 0)) - float(order.get('total_discounts', 0))
-            current = float(order.get('current_subtotal_price', original_subtotal))
-            if current < original_subtotal:
-                total_refunds += original_subtotal - current
-
             order_count += 1
 
         return {
-            'revenue': total_net,       # kept for backwards compatibility
-            'net_revenue': total_net,    # after discounts, refunds, no shipping
-            'gross_revenue': total_gross, # products + shipping, before discounts/refunds
+            'revenue': total_net_sales,          # backwards compatibility
+            'gross_revenue': total_gross_sales,   # Shopify "Gross sales" (before discounts)
+            'net_revenue': total_net_sales,       # Shopify "Net sales" (after discounts & refunds)
+            'total_sales': total_total_sales,     # Shopify "Total sales" (net + shipping)
             'orders': order_count,
             'discounts': total_discounts,
-            'refunds': total_refunds,
             'shipping': total_shipping,
-            'gross': total_gross,
+            'gross': total_gross_sales,
         }
     except Exception as e:
         st.error(f"Error fetching Shopify orders: {e}")
