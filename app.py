@@ -1261,8 +1261,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         st.exception(e)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime, _cache_v: int = 2) -> List[dict]:
+def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> List[dict]:
     """Fetch D2C orders from Linnworks for a specific period."""
     store = _get_secret("SHOPIFY_STORE_DOMAIN")
     token = _get_secret("SHOPIFY_ACCESS_TOKEN")
@@ -2139,7 +2138,7 @@ def render_weekly_scorecard():
             last_month_start.strftime('%Y-%m-%d'), last_month_same_day.strftime('%Y-%m-%d'))
 
     # Debug: show what Linnworks returned
-    st.caption(f"Debug: Linnworks returned {len(d2c_week)} D2C orders for {last_monday} to {last_sunday}")
+    st.caption(f"Debug: Linnworks returned {len(d2c_week)} D2C orders for week {last_monday} to {last_sunday}, {len(d2c_mtd)} MTD, prev week: {len(d2c_prev_week)}")
 
     # Calculate D2C metrics
     d2c_week_metrics = calculate_d2c_period_metrics(d2c_week)
