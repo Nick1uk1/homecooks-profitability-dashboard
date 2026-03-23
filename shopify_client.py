@@ -13,6 +13,18 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
+def _get_secret(key: str, default: str = "") -> str:
+    """Get secret from Streamlit secrets (cloud) or env vars (local)."""
+    try:
+        import streamlit as st
+        val = st.secrets.get(key, "")
+        if val:
+            return val
+    except Exception:
+        pass
+    return os.environ.get(key, default)
+
+
 class ShopifyClient:
     """Client for Shopify Admin API with pagination and rate limiting."""
 
@@ -22,9 +34,9 @@ class ShopifyClient:
         access_token: Optional[str] = None,
         api_version: Optional[str] = None,
     ):
-        self.store_domain = store_domain or os.environ.get("SHOPIFY_STORE_DOMAIN")
-        self.access_token = access_token or os.environ.get("SHOPIFY_ACCESS_TOKEN")
-        self.api_version = api_version or os.environ.get("SHOPIFY_API_VERSION", "2024-07")
+        self.store_domain = store_domain or _get_secret("SHOPIFY_STORE_DOMAIN")
+        self.access_token = access_token or _get_secret("SHOPIFY_ACCESS_TOKEN")
+        self.api_version = api_version or _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
         if not self.store_domain:
             raise ValueError("SHOPIFY_STORE_DOMAIN environment variable is required")
