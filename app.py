@@ -83,7 +83,7 @@ def get_delivery_cost(num_cases: int) -> float:
     return 0.0
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
 def get_customer_order_metrics(customer_ids: tuple) -> dict:
     """
     Fetch order history for customers and calculate metrics.
@@ -380,14 +380,14 @@ def get_logo_base64():
     return None
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
 def fetch_shopify_orders(store_domain: str, access_token: str, api_version: str,
                           date_min: datetime, date_max: datetime) -> List[dict]:
     client = ShopifyClient(store_domain, access_token, api_version)
     return list(client.get_orders(created_at_min=date_min, created_at_max=date_max, status="any"))
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
 def fetch_shopify_orders_by_ids(store_domain: str, access_token: str, api_version: str,
                                  order_ids: tuple) -> List[dict]:
     """Fetch specific Shopify orders by their IDs."""
@@ -422,7 +422,7 @@ def fetch_shopify_orders_by_ids(store_domain: str, access_token: str, api_versio
     return orders
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
 def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]:
     client = LinnworksClient()
     if client.authenticate():
@@ -430,7 +430,7 @@ def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]
     return []
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
 def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cache_v: int = 5) -> dict:
     """
     Fetch D2C revenue from Shopify based on ORDER DATE (created_at), not dispatch date.
@@ -494,7 +494,7 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
         return {'revenue': 0, 'orders': 0, 'discounts': 0, 'gross': 0}
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
 def fetch_all_retail_orders() -> List[dict]:
     """Fetch ALL historic retail orders from Linnworks (No Shipping Required)."""
     import requests
@@ -585,7 +585,7 @@ def get_store_name(order: dict) -> str:
         return "Unknown Store"
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
 def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[dict]:
     """Fetch retail order details from Linnworks (No Shipping Required)."""
     import requests
