@@ -2300,8 +2300,8 @@ def render_weekly_scorecard():
     st.markdown("#### Combined Totals")
     total_col1, total_col2, total_col3, total_col4 = st.columns(4)
 
-    total_week_rev = week_rev + r_week_rev
-    total_prev_rev = prev_rev + r_prev_rev
+    total_week_rev = week_net + r_week_rev
+    total_prev_rev = prev_net + r_prev_rev
     total_rev_delta = ((total_week_rev / total_prev_rev) - 1) * 100 if total_prev_rev > 0 else 0
 
     total_week_profit = week_profit + r_week_profit
