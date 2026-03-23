@@ -83,7 +83,7 @@ def get_delivery_cost(num_cases: int) -> float:
     return 0.0
 
 
-# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_customer_order_metrics(customer_ids: tuple) -> dict:
     """
     Fetch order history for customers and calculate metrics.
@@ -380,14 +380,14 @@ def get_logo_base64():
     return None
 
 
-# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_shopify_orders(store_domain: str, access_token: str, api_version: str,
                           date_min: datetime, date_max: datetime) -> List[dict]:
     client = ShopifyClient(store_domain, access_token, api_version)
     return list(client.get_orders(created_at_min=date_min, created_at_max=date_max, status="any"))
 
 
-# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_shopify_orders_by_ids(store_domain: str, access_token: str, api_version: str,
                                  order_ids: tuple) -> List[dict]:
     """Fetch specific Shopify orders by their IDs."""
@@ -422,7 +422,7 @@ def fetch_shopify_orders_by_ids(store_domain: str, access_token: str, api_versio
     return orders
 
 
-# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]:
     client = LinnworksClient()
     if client.authenticate():
@@ -430,7 +430,7 @@ def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]
     return []
 
 
-# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cache_v: int = 5) -> dict:
     """
     Fetch D2C revenue from Shopify based on ORDER DATE (created_at), not dispatch date.
@@ -494,7 +494,7 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
         return {'revenue': 0, 'orders': 0, 'discounts': 0, 'gross': 0}
 
 
-# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_all_retail_orders() -> List[dict]:
     """Fetch ALL historic retail orders from Linnworks (No Shipping Required)."""
     import requests
@@ -585,7 +585,7 @@ def get_store_name(order: dict) -> str:
         return "Unknown Store"
 
 
-# @st.cache_data(ttl=3600, show_spinner=False)  # CACHE DISABLED
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[dict]:
     """Fetch retail order details from Linnworks (No Shipping Required)."""
     import requests
@@ -2137,8 +2137,16 @@ def render_weekly_scorecard():
         sub_lm = fetch_subscription_metrics_for_period(
             last_month_start.strftime('%Y-%m-%d'), last_month_same_day.strftime('%Y-%m-%d'))
 
-    # Debug: show what Linnworks returned
-    st.caption(f"Debug: Linnworks returned {len(d2c_week)} D2C orders for week {last_monday} to {last_sunday}, {len(d2c_mtd)} MTD, prev week: {len(d2c_prev_week)}")
+    # Get D2C dispatch counts directly from Linnworks (excludes "No Shipping Required")
+    def _lw_d2c_count(start_dt, end_dt):
+        lw = LinnworksClient()
+        if not lw.authenticate():
+            return 0
+        orders = lw.get_processed_orders(start_dt, end_dt)
+        return len([o for o in orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()])
+
+    lw_week_sent = _lw_d2c_count(week_start_dt, week_end_dt)
+    lw_prev_week_sent = _lw_d2c_count(prev_week_start_dt, prev_week_end_dt)
 
     # Calculate D2C metrics
     d2c_week_metrics = calculate_d2c_period_metrics(d2c_week)
@@ -2194,11 +2202,9 @@ def render_weekly_scorecard():
         orders_delta = week_orders - prev_orders
         st.metric("Orders Placed", f"{week_orders:,}", f"{orders_delta:+d} vs LW")
 
-        # Orders sent out - USE DISPATCH DATE
-        week_sent = d2c_week_metrics['orders']
-        prev_sent = d2c_prev_metrics['orders']
-        sent_delta = week_sent - prev_sent
-        st.metric("Sent Out", f"{week_sent:,}", f"{sent_delta:+d} vs LW")
+        # Orders sent out - direct from Linnworks (excludes retail)
+        sent_delta = lw_week_sent - lw_prev_week_sent
+        st.metric("Sent Out", f"{lw_week_sent:,}", f"{sent_delta:+d} vs LW")
 
         # Average COGS per unit
         week_avg_cogs = d2c_week_metrics['avg_cogs']
