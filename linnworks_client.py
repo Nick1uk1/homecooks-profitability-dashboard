@@ -10,13 +10,25 @@ from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 
 
+def _get_secret(key: str) -> str:
+    """Get secret from Streamlit secrets (cloud) or env vars (local)."""
+    try:
+        import streamlit as st
+        val = st.secrets.get(key, "")
+        if val:
+            return val
+    except Exception:
+        pass
+    return os.environ.get(key, "")
+
+
 class LinnworksClient:
     """Client for Linnworks API to get processed order dispatch dates."""
 
     def __init__(self):
-        self.app_id = os.environ.get("LINNWORKS_APP_ID", "")
-        self.app_secret = os.environ.get("LINNWORKS_APP_SECRET", "")
-        self.install_token = os.environ.get("LINNWORKS_INSTALL_TOKEN", "")
+        self.app_id = _get_secret("LINNWORKS_APP_ID")
+        self.app_secret = _get_secret("LINNWORKS_APP_SECRET")
+        self.install_token = _get_secret("LINNWORKS_INSTALL_TOKEN")
 
         self.session_token = None
         self.server = None

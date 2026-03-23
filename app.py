@@ -301,11 +301,22 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 
+def _get_secret(key: str, default: str = "") -> str:
+    """Get secret from Streamlit secrets (cloud) or env vars (local)."""
+    try:
+        val = st.secrets.get(key, "")
+        if val:
+            return val
+    except Exception:
+        pass
+    return os.environ.get(key, default)
+
+
 def check_env_vars() -> tuple[bool, List[str]]:
     missing = []
-    if not os.environ.get("SHOPIFY_STORE_DOMAIN"):
+    if not _get_secret("SHOPIFY_STORE_DOMAIN"):
         missing.append("SHOPIFY_STORE_DOMAIN")
-    if not os.environ.get("SHOPIFY_ACCESS_TOKEN"):
+    if not _get_secret("SHOPIFY_ACCESS_TOKEN"):
         missing.append("SHOPIFY_ACCESS_TOKEN")
     return len(missing) == 0, missing
 
@@ -425,9 +436,9 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
     Fetch D2C revenue from Shopify based on ORDER DATE (created_at), not dispatch date.
     Returns revenue metrics for orders placed during the period.
     """
-    store = os.environ.get("SHOPIFY_STORE_DOMAIN")
-    token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
-    version = os.environ.get("SHOPIFY_API_VERSION", "2024-07")
+    store = _get_secret("SHOPIFY_STORE_DOMAIN")
+    token = _get_secret("SHOPIFY_ACCESS_TOKEN")
+    version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
     if not store or not token:
         return {'revenue': 0, 'orders': 0, 'discounts': 0, 'gross': 0}
