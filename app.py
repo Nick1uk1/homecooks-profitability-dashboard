@@ -2156,11 +2156,17 @@ def render_weekly_scorecard():
 
     with col1:
         st.markdown("#### D2C")
-        # Week revenue with delta - USE ORDER DATE (when order placed)
-        week_rev = d2c_week_revenue['revenue']
-        prev_rev = d2c_prev_week_revenue['revenue']
-        delta_pct = ((week_rev / prev_rev) - 1) * 100 if prev_rev > 0 else 0
-        st.metric("Revenue (Week)", f"£{week_rev:,.0f}", f"{delta_pct:+.1f}% vs LW")
+        # Week gross revenue - USE ORDER DATE
+        week_gross = d2c_week_revenue.get('gross_revenue', d2c_week_revenue.get('gross', 0))
+        prev_gross = d2c_prev_week_revenue.get('gross_revenue', d2c_prev_week_revenue.get('gross', 0))
+        gross_delta_pct = ((week_gross / prev_gross) - 1) * 100 if prev_gross > 0 else 0
+        st.metric("Gross Revenue (Week)", f"£{week_gross:,.0f}", f"{gross_delta_pct:+.1f}% vs LW")
+
+        # Week net revenue - USE ORDER DATE
+        week_net = d2c_week_revenue.get('net_revenue', d2c_week_revenue['revenue'])
+        prev_net = d2c_prev_week_revenue.get('net_revenue', d2c_prev_week_revenue['revenue'])
+        net_delta_pct = ((week_net / prev_net) - 1) * 100 if prev_net > 0 else 0
+        st.metric("Net Revenue (Week)", f"£{week_net:,.0f}", f"{net_delta_pct:+.1f}% vs LW")
 
         # Week profit with delta - USE DISPATCH DATE (need COGS/packaging)
         week_profit = d2c_week_metrics['profit']
