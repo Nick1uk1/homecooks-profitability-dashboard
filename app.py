@@ -1270,11 +1270,12 @@ def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime, _cache
 
     client = LinnworksClient()
     if not client.authenticate():
+        st.warning(f"Linnworks auth failed. App ID: {'set' if client.app_id else 'MISSING'}, Secret: {'set' if client.app_secret else 'MISSING'}, Token: {'set' if client.install_token else 'MISSING'}")
         return []
 
     linnworks_orders = client.get_processed_orders(start_date, end_date)
 
-    # Filter out retail orders (No Shipping Required)
+    # Filter out retail orders (No Shipping Required) — always exclude
     d2c_orders = [o for o in linnworks_orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()]
 
     if not d2c_orders:
@@ -2136,6 +2137,9 @@ def render_weekly_scorecard():
             mtd_start.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d'))
         sub_lm = fetch_subscription_metrics_for_period(
             last_month_start.strftime('%Y-%m-%d'), last_month_same_day.strftime('%Y-%m-%d'))
+
+    # Debug: show what Linnworks returned
+    st.caption(f"Debug: Linnworks returned {len(d2c_week)} D2C orders for {last_monday} to {last_sunday}")
 
     # Calculate D2C metrics
     d2c_week_metrics = calculate_d2c_period_metrics(d2c_week)
