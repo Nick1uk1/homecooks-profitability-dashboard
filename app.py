@@ -1264,9 +1264,9 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> List[dict]:
     """Fetch D2C orders from Linnworks for a specific period."""
-    store = os.environ.get("SHOPIFY_STORE_DOMAIN")
-    token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
-    version = os.environ.get("SHOPIFY_API_VERSION", "2024-07")
+    store = _get_secret("SHOPIFY_STORE_DOMAIN")
+    token = _get_secret("SHOPIFY_ACCESS_TOKEN")
+    version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
     client = LinnworksClient()
     if not client.authenticate():
@@ -1343,9 +1343,9 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
     try:
         import calendar
 
-        store = os.environ.get("SHOPIFY_STORE_DOMAIN")
-        token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
-        version = os.environ.get("SHOPIFY_API_VERSION", "2024-07")
+        store = _get_secret("SHOPIFY_STORE_DOMAIN")
+        token = _get_secret("SHOPIFY_ACCESS_TOKEN")
+        version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
         # Calculate date ranges for MTD, YTD, Last Month, LFL
         today = datetime.now()
