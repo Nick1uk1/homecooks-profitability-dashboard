@@ -1654,7 +1654,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             st.warning("Could not fetch order details from Shopify.")
             return
 
-        cache_key = f"proc_{date_min}_{date_max}_v4"
+        cache_key = f"proc_{date_min}_{date_max}_v5"
 
         if cache_key not in st.session_state:
             client = ShopifyClient()
