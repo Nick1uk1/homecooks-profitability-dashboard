@@ -1678,12 +1678,12 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             st.info("No orders match the current filters.")
             return
 
-        # Weekly breakdown
+        # Weekly breakdown - ALWAYS use ALL orders regardless of day filter
         st.markdown("---")
         st.markdown("### 📅 Weekly Performance")
-        st.caption(f"Selected period: {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')} | Filter: {day_filter}")
+        st.caption(f"Selected period: {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')} | All dispatch days")
 
-        df = create_orders_dataframe(filtered)
+        df = create_orders_dataframe(processed)
 
         if not df.empty:
             # Fetch customer order history to determine first-time orders (total_orders == 1)
