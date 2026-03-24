@@ -422,7 +422,6 @@ def fetch_shopify_orders_by_ids(store_domain: str, access_token: str, api_versio
     return orders
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]:
     client = LinnworksClient()
     if client.authenticate():
