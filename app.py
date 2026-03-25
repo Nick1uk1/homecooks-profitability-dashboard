@@ -1699,6 +1699,10 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             profit_orders = fetch_d2c_orders_for_period(w_start, w_end)
             prof = calculate_d2c_period_metrics(profit_orders)
 
+            # Orders sent out from Linnworks
+            lw_orders = fetch_linnworks_orders(w_start, w_end)
+            sent_out = len([o for o in lw_orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()])
+
             gross = rev.get('gross_revenue', rev.get('gross', 0))
             net = rev.get('net_revenue', rev.get('revenue', 0))
             orders = rev.get('orders', 0)
@@ -1712,7 +1716,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             week_tiles_data.append({
                 'week_num': w_mon.isocalendar()[1],
                 'date_range': f"{w_mon.strftime('%-d %b')} - {w_sun.strftime('%-d %b')}",
-                'gross': gross, 'net': net, 'orders': orders,
+                'gross': gross, 'net': net, 'orders': orders, 'sent_out': sent_out,
                 'profit': profit, 'margin': margin, 'aov': aov,
                 'avg_cogs': avg_cogs, 'discounts': discounts,
                 'first_time': first_time,
@@ -1736,7 +1740,8 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 <p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 12px 0;">NET REVENUE</p>
 <table style="width:100%; color:{HC_WHITE}; font-size:0.9em;">
 <tr>
-<td style="text-align:center;"><strong>{row['orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
+<td style="text-align:center;"><strong>{row['orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Received</span></td>
+<td style="text-align:center;"><strong>{row['sent_out']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Sent Out</span></td>
 <td style="text-align:center;"><strong>{format_currency(row['profit'])}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Profit</span></td>
 <td style="text-align:center;"><strong>{row['margin']:.1f}%</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Margin</span></td>
 </tr>
