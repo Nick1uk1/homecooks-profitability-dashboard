@@ -76,17 +76,11 @@ class ShopifyClient:
         """Make GET request with rate limit handling."""
         max_retries = 5
         for attempt in range(max_retries):
-            try:
-                response = self.session.get(url, params=params)
-                if response.status_code == 429:
-                    self._handle_rate_limit(response)
-                    continue
-                return response
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                    continue
-                raise
+            response = self.session.get(url, params=params)
+            if response.status_code == 429:
+                self._handle_rate_limit(response)
+                continue
+            return response
         return response
 
     def _parse_link_header(self, link_header: str) -> Optional[str]:
