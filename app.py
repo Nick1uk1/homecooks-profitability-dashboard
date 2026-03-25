@@ -490,18 +490,11 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
             total_discounts += float(order.get('total_discounts', 0))
             order_count += 1
 
-        # Count first-time orders (customer has only 1 order total)
-        first_time_count = 0
-        customer_ids = [o.get('customer', {}).get('id') for o in orders if o.get('customer', {}).get('id')]
-        if customer_ids:
-            try:
-                cust_metrics = get_customer_order_metrics(tuple(set(customer_ids)))
-                for order in orders:
-                    cid = order.get('customer', {}).get('id')
-                    if cid and cust_metrics.get(cid, {}).get('total_orders', 1) == 1:
-                        first_time_count += 1
-            except Exception:
-                first_time_count = 0
+        # Count first-time orders (tagged with appstle_subscription_first_order)
+        first_time_count = sum(
+            1 for o in orders
+            if 'appstle_subscription_first_order' in (o.get('tags') or '').lower()
+        )
 
         return {
             'revenue': total_net_sales,          # backwards compatibility
