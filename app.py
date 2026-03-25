@@ -490,6 +490,19 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
             total_discounts += float(order.get('total_discounts', 0))
             order_count += 1
 
+        # Count first-time orders (customer has only 1 order total)
+        first_time_count = 0
+        customer_ids = [o.get('customer', {}).get('id') for o in orders if o.get('customer', {}).get('id')]
+        if customer_ids:
+            try:
+                cust_metrics = get_customer_order_metrics(tuple(set(customer_ids)))
+                for order in orders:
+                    cid = order.get('customer', {}).get('id')
+                    if cid and cust_metrics.get(cid, {}).get('total_orders', 1) == 1:
+                        first_time_count += 1
+            except Exception:
+                first_time_count = 0
+
         return {
             'revenue': total_net_sales,          # backwards compatibility
             'gross_revenue': total_gross_sales,   # Shopify "Gross sales" (before discounts)
@@ -499,6 +512,7 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
             'discounts': total_discounts,
             'shipping': total_shipping,
             'gross': total_gross_sales,
+            'first_time_orders': first_time_count,
         }
     except Exception as e:
         st.error(f"Error fetching Shopify orders: {e}")
