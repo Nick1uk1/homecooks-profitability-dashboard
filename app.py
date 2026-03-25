@@ -83,6 +83,17 @@ def get_delivery_cost(num_cases: int) -> float:
     return 0.0
 
 
+def _is_retail_order(order: dict) -> bool:
+    """Check if a Linnworks order is retail (not D2C)."""
+    postal = (order.get('PostalServiceName') or '').lower()
+    name = (order.get('cFullName') or '').lower()
+    if 'no shipping' in postal:
+        return True
+    if 'on the rocks' in name:
+        return True
+    return False
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_customer_order_metrics(customer_ids: tuple) -> dict:
     """
@@ -511,7 +522,7 @@ def fetch_all_retail_orders() -> List[dict]:
     all_orders = client.get_processed_orders(date_min, date_max)
 
     # Filter for "No Shipping Required"
-    retail_summary = [o for o in all_orders if 'no shipping' in (o.get('PostalServiceName') or '').lower()]
+    retail_summary = [o for o in all_orders if _is_retail_order(o)]
 
     if not retail_summary:
         return []
@@ -598,7 +609,7 @@ def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[d
     all_orders = client.get_processed_orders(date_min, date_max)
 
     # Filter for "No Shipping Required"
-    retail_summary = [o for o in all_orders if 'no shipping' in (o.get('PostalServiceName') or '').lower()]
+    retail_summary = [o for o in all_orders if _is_retail_order(o)]
 
     if not retail_summary:
         return []
@@ -1275,7 +1286,7 @@ def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> Lis
     linnworks_orders = client.get_processed_orders(start_date, end_date)
 
     # Filter out retail orders (No Shipping Required) — always exclude
-    d2c_orders = [o for o in linnworks_orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()]
+    d2c_orders = [o for o in linnworks_orders if not _is_retail_order(o)]
 
     if not d2c_orders:
         return []
@@ -1400,7 +1411,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             return
 
         # Filter out retail orders (No Shipping Required)
-        d2c_linnworks = [o for o in linnworks_orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()]
+        d2c_linnworks = [o for o in linnworks_orders if not _is_retail_order(o)]
 
         if not d2c_linnworks:
             st.warning("No D2C orders found for selected date range (all were retail).")
@@ -1701,7 +1712,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 
             # Orders sent out from Linnworks
             lw_orders = fetch_linnworks_orders(w_start, w_end)
-            sent_out = len([o for o in lw_orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()])
+            sent_out = len([o for o in lw_orders if not _is_retail_order(o)])
 
             gross = rev.get('gross_revenue', rev.get('gross', 0))
             net = rev.get('net_revenue', rev.get('revenue', 0))
@@ -2161,7 +2172,7 @@ def render_weekly_scorecard():
         if not lw.authenticate():
             return 0
         orders = lw.get_processed_orders(start_dt, end_dt)
-        return len([o for o in orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()])
+        return len([o for o in orders if not _is_retail_order(o)])
 
     lw_week_sent = _lw_d2c_count(week_start_dt, week_end_dt)
     lw_prev_week_sent = _lw_d2c_count(prev_week_start_dt, prev_week_end_dt)
