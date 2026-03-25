@@ -478,6 +478,16 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
             total_discounts += float(order.get('total_discounts', 0))
             order_count += 1
 
+        # Count first-time orders
+        first_time_count = 0
+        customer_ids = [o.get('customer', {}).get('id') for o in orders if o.get('customer', {}).get('id')]
+        if customer_ids:
+            customer_metrics = get_customer_order_metrics(tuple(set(customer_ids)))
+            for order in orders:
+                cid = order.get('customer', {}).get('id')
+                if cid and customer_metrics.get(cid, {}).get('total_orders', 1) == 1:
+                    first_time_count += 1
+
         return {
             'revenue': total_net_sales,          # backwards compatibility
             'gross_revenue': total_gross_sales,   # Shopify "Gross sales" (before discounts)
@@ -487,6 +497,7 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
             'discounts': total_discounts,
             'shipping': total_shipping,
             'gross': total_gross_sales,
+            'first_time_orders': first_time_count,
         }
     except Exception as e:
         st.error(f"Error fetching Shopify orders: {e}")
@@ -1710,18 +1721,20 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             week_num = week_monday.isocalendar()[1]
             date_range_str = f"{week_monday.strftime('%-d %b')} - {week_sunday.strftime('%-d %b')}"
 
-            revenue = rev_data.get('net_revenue', rev_data.get('revenue', 0))
+            gross_revenue = rev_data.get('gross_revenue', rev_data.get('gross', 0))
+            net_revenue = rev_data.get('net_revenue', rev_data.get('revenue', 0))
             orders = rev_data.get('orders', 0)
             discounts = rev_data.get('discounts', 0)
             profit = profit_metrics.get('profit', 0)
-            margin = (profit / revenue * 100) if revenue > 0 else 0
-            aov = (revenue / orders) if orders > 0 else 0
+            margin = (profit / net_revenue * 100) if net_revenue > 0 else 0
+            aov = (net_revenue / orders) if orders > 0 else 0
             avg_cogs = profit_metrics.get('avg_cogs', 0)
             first_time = rev_data.get('first_time_orders', 0)
 
             week_tiles.append({
                 'week_num': week_num, 'date_range': date_range_str,
-                'revenue': revenue, 'orders': orders, 'profit': profit,
+                'gross_revenue': gross_revenue, 'net_revenue': net_revenue,
+                'orders': orders, 'profit': profit,
                 'margin': margin, 'aov': aov, 'avg_cogs': avg_cogs,
                 'discounts': discounts, 'first_time': first_time,
             })
@@ -1739,9 +1752,11 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                     st.markdown(f"""
 <div style="background:{HC_DARK_TEAL}; padding:20px; border-radius:12px; text-align:center; margin-bottom:15px;">
 <span style="background:{HC_WHITE}; color:{HC_DARK_TEAL}; font-weight:bold; font-size:0.85em; padding:4px 12px; border-radius:20px;">WEEK {wt['week_num']}</span>
-<p style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin:10px 0 15px 0;">{wt['date_range']}</p>
-<p style="color:{HC_WHITE}; font-size:1.8em; font-weight:bold; margin:0;">{format_currency(wt['revenue'])}</p>
-<p style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin:0 0 15px 0;">REVENUE</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin:10px 0 10px 0;">{wt['date_range']}</p>
+<p style="color:{HC_WHITE}; font-size:1.6em; font-weight:bold; margin:0;">{format_currency(wt['gross_revenue'])}</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 5px 0;">GROSS REVENUE</p>
+<p style="color:{HC_WHITE}; font-size:1.3em; font-weight:bold; margin:0;">{format_currency(wt['net_revenue'])}</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 12px 0;">NET REVENUE</p>
 <table style="width:100%; color:{HC_WHITE}; font-size:0.9em;">
 <tr>
 <td style="text-align:center;"><strong>{wt['orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
