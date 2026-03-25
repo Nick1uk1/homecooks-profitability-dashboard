@@ -1725,9 +1725,11 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
                         st.markdown(f"""
 <div style="background:{HC_DARK_TEAL}; padding:20px; border-radius:12px; text-align:center; margin-bottom:15px;">
 <span style="background:{HC_WHITE}; color:{HC_DARK_TEAL}; font-weight:bold; font-size:0.85em; padding:4px 12px; border-radius:20px;">WEEK {week_num}</span>
-<p style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin:10px 0 15px 0;">{date_range}</p>
-<p style="color:{HC_WHITE}; font-size:1.8em; font-weight:bold; margin:0;">{format_currency(row['Revenue'])}</p>
-<p style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin:0 0 15px 0;">REVENUE</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin:10px 0 10px 0;">{date_range}</p>
+<p style="color:{HC_WHITE}; font-size:1.6em; font-weight:bold; margin:0;">{format_currency(row['Revenue'] + row['Discounts'])}</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 5px 0;">GROSS REVENUE</p>
+<p style="color:{HC_WHITE}; font-size:1.3em; font-weight:bold; margin:0;">{format_currency(row['Revenue'])}</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 12px 0;">NET REVENUE</p>
 <table style="width:100%; color:{HC_WHITE}; font-size:0.9em;">
 <tr>
 <td style="text-align:center;"><strong>{row['Orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
