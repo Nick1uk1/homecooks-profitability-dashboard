@@ -1756,9 +1756,14 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 </div>
                     """, unsafe_allow_html=True)
 
-        # Orders table
+        # Orders table - uses the dispatch-matched orders for detail view
         st.markdown("---")
         st.markdown("### Order Details")
+
+        df = create_orders_dataframe(filtered)
+        if df.empty:
+            st.info("No order details for the selected dispatch day filter.")
+            return
 
         display_df = df.copy()
         display_df["sent_out_at"] = display_df["sent_out_at"].dt.strftime("%d/%m/%Y")
