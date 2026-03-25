@@ -1678,75 +1678,86 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             st.info("No orders match the current filters.")
             return
 
-        # Weekly breakdown - ALWAYS use ALL orders regardless of day filter
+        # Weekly breakdown - uses SAME data source as scorecard
         st.markdown("---")
         st.markdown("### 📅 Weekly Performance")
-        st.caption(f"Selected period: {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')} | All dispatch days | {len(processed)} total orders (v5)")
 
-        df = create_orders_dataframe(processed)
+        # Build week boundaries from selected period
+        period_start_dt = datetime.combine(date_start, datetime.min.time())
+        period_end_dt = datetime.combine(date_end, datetime.max.time())
 
-        if not df.empty:
-            # Fetch customer order history to determine first-time orders (total_orders == 1)
-            if "customer_id" in df.columns:
-                unique_customer_ids = tuple(df["customer_id"].dropna().unique())
-                if unique_customer_ids:
-                    customer_metrics = get_customer_order_metrics(unique_customer_ids)
-                    # First-time order = customer has only 1 order total (shows "-" in Freq column)
-                    df["is_first_order"] = df["customer_id"].apply(
-                        lambda cid: customer_metrics.get(cid, {}).get("total_orders", 1) == 1 if pd.notna(cid) else False
-                    )
-                else:
-                    df["is_first_order"] = False
-            else:
-                df["is_first_order"] = False
+        week_tiles_data = []
+        cur = period_start_dt
+        while cur <= period_end_dt:
+            w_mon = cur - timedelta(days=cur.weekday())
+            w_sun = w_mon + timedelta(days=6)
+            w_start = datetime.combine(max(w_mon.date(), date_start), datetime.min.time())
+            w_end = datetime.combine(min(w_sun.date(), date_end), datetime.max.time())
 
-            weekly_kpis = df.groupby("week").agg({
-                "order_id": "count",
-                "net_revenue": "sum",
-                "total_discounts": "sum",
-                "contribution": "sum",
-                "cogs": "sum",
-                "total_units": "sum",
-                "is_first_order": "sum",
-            }).reset_index()
-            weekly_kpis.columns = ["Week", "Orders", "Revenue", "Discounts", "Profit", "COGS", "Units", "FirstTimeOrders"]
-            weekly_kpis["Margin"] = (weekly_kpis["Profit"] / weekly_kpis["Revenue"] * 100).round(1)
-            weekly_kpis["AOV"] = (weekly_kpis["Revenue"] / weekly_kpis["Orders"]).round(2)
-            weekly_kpis["Avg COGS"] = (weekly_kpis["COGS"] / weekly_kpis["Units"]).round(2)
+            # Same functions as scorecard
+            rev = fetch_d2c_revenue_by_order_date(w_start, w_end)
+            profit_orders = fetch_d2c_orders_for_period(w_start, w_end)
+            prof = calculate_d2c_period_metrics(profit_orders)
 
-            num_weeks = len(weekly_kpis)
-            if num_weeks > 0:
-                week_cols = st.columns(min(num_weeks, 4))
-                for idx, row in weekly_kpis.iterrows():
-                    col_idx = idx % len(week_cols)
-                    week_num = row['Week'].split('-W')[1] if '-W' in row['Week'] else row['Week']
-                    date_range = get_week_date_range(row['Week'])
-                    with week_cols[col_idx]:
-                        st.markdown(f"""
+            gross = rev.get('gross_revenue', rev.get('gross', 0))
+            net = rev.get('net_revenue', rev.get('revenue', 0))
+            orders = rev.get('orders', 0)
+            discounts = rev.get('discounts', 0)
+            profit = prof.get('profit', 0)
+            avg_cogs = prof.get('avg_cogs', 0)
+            margin = (profit / net * 100) if net > 0 else 0
+            aov = (net / orders) if orders > 0 else 0
+            first_time = rev.get('first_time_orders', 0) if 'first_time_orders' in rev else 0
+
+            week_tiles_data.append({
+                'week_num': w_mon.isocalendar()[1],
+                'date_range': f"{w_mon.strftime('%-d %b')} - {w_sun.strftime('%-d %b')}",
+                'gross': gross, 'net': net, 'orders': orders,
+                'profit': profit, 'margin': margin, 'aov': aov,
+                'avg_cogs': avg_cogs, 'discounts': discounts,
+                'first_time': first_time,
+            })
+            cur = datetime.combine(w_sun.date(), datetime.min.time()) + timedelta(days=1)
+
+        if week_tiles_data:
+            num_weeks = len(week_tiles_data)
+            week_cols = st.columns(min(num_weeks, 4))
+            for idx, row in enumerate(week_tiles_data):
+                col_idx = idx % len(week_cols)
+                ft_pct = (row['first_time'] / row['orders'] * 100) if row['orders'] > 0 else 0
+                with week_cols[col_idx]:
+                    st.markdown(f"""
 <div style="background:{HC_DARK_TEAL}; padding:20px; border-radius:12px; text-align:center; margin-bottom:15px;">
-<span style="background:{HC_WHITE}; color:{HC_DARK_TEAL}; font-weight:bold; font-size:0.85em; padding:4px 12px; border-radius:20px;">WEEK {week_num}</span>
-<p style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin:10px 0 10px 0;">{date_range}</p>
-<p style="color:{HC_WHITE}; font-size:1.6em; font-weight:bold; margin:0;">{format_currency(row['Revenue'] + row['Discounts'])}</p>
+<span style="background:{HC_WHITE}; color:{HC_DARK_TEAL}; font-weight:bold; font-size:0.85em; padding:4px 12px; border-radius:20px;">WEEK {row['week_num']}</span>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.8em; margin:10px 0 10px 0;">{row['date_range']}</p>
+<p style="color:{HC_WHITE}; font-size:1.6em; font-weight:bold; margin:0;">{format_currency(row['gross'])}</p>
 <p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 5px 0;">GROSS REVENUE</p>
-<p style="color:{HC_WHITE}; font-size:1.3em; font-weight:bold; margin:0;">{format_currency(row['Revenue'])}</p>
+<p style="color:{HC_WHITE}; font-size:1.3em; font-weight:bold; margin:0;">{format_currency(row['net'])}</p>
 <p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 12px 0;">NET REVENUE</p>
 <table style="width:100%; color:{HC_WHITE}; font-size:0.9em;">
 <tr>
-<td style="text-align:center;"><strong>{row['Orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
-<td style="text-align:center;"><strong>{format_currency(row['Profit'])}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Profit</span></td>
-<td style="text-align:center;"><strong>{row['Margin']:.1f}%</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Margin</span></td>
+<td style="text-align:center;"><strong>{row['orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
+<td style="text-align:center;"><strong>{format_currency(row['profit'])}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Profit</span></td>
+<td style="text-align:center;"><strong>{row['margin']:.1f}%</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Margin</span></td>
 </tr>
 <tr>
-<td colspan="3" style="text-align:center; padding-top:8px;"><strong>{int(row['FirstTimeOrders'])}</strong> ({row['FirstTimeOrders']/row['Orders']*100:.0f}%)<br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">First-Time Orders</span></td>
+<td colspan="3" style="text-align:center; padding-top:8px;"><strong>{int(row['first_time'])}</strong> ({ft_pct:.0f}%)<br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">First-Time Orders</span></td>
 </tr>
 </table>
-<p style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin:15px 0 0 0; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">AOV: {format_currency(row['AOV'])} &nbsp;|&nbsp; Avg COGS: {format_currency(row['Avg COGS'])} &nbsp;|&nbsp; Discounts: {format_currency(row['Discounts'])}</p>
+<p style="color:{HC_LIGHT_MINT}; font-size:0.75em; margin:15px 0 0 0; border-top:1px solid rgba(255,255,255,0.2); padding-top:10px;">AOV: {format_currency(row['aov'])} &nbsp;|&nbsp; Avg COGS: {format_currency(row['avg_cogs'])} &nbsp;|&nbsp; Discounts: {format_currency(row['discounts'])}</p>
 </div>
-                        """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
-        # Orders table
+        # Orders table - uses dispatch-matched data for detail view
         st.markdown("---")
         st.markdown("### Order Details")
+
+        df = create_orders_dataframe(filtered)
+        if df.empty:
+            df = create_orders_dataframe(processed)
+        if df.empty:
+            st.info("No order details available.")
+            return
 
         display_df = df.copy()
         display_df["sent_out_at"] = display_df["sent_out_at"].dt.strftime("%d/%m/%Y")
