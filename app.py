@@ -83,7 +83,7 @@ def get_delivery_cost(num_cases: int) -> float:
     return 0.0
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+
 def get_customer_order_metrics(customer_ids: tuple) -> dict:
     """
     Fetch order history for customers and calculate metrics.
@@ -380,14 +380,14 @@ def get_logo_base64():
     return None
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+
 def fetch_shopify_orders(store_domain: str, access_token: str, api_version: str,
                           date_min: datetime, date_max: datetime) -> List[dict]:
     client = ShopifyClient(store_domain, access_token, api_version)
     return list(client.get_orders(created_at_min=date_min, created_at_max=date_max, status="any"))
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+
 def fetch_shopify_orders_by_ids(store_domain: str, access_token: str, api_version: str,
                                  order_ids: tuple) -> List[dict]:
     """Fetch specific Shopify orders by their IDs."""
@@ -429,7 +429,7 @@ def fetch_linnworks_orders(date_min: datetime, date_max: datetime) -> List[dict]
     return []
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+
 def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cache_v: int = 5) -> dict:
     """
     Fetch D2C revenue from Shopify based on ORDER DATE (created_at), not dispatch date.
@@ -504,7 +504,6 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
         return {'revenue': 0, 'orders': 0, 'discounts': 0, 'gross': 0}
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_all_retail_orders() -> List[dict]:
     """Fetch ALL historic retail orders from Linnworks (No Shipping Required)."""
     import requests
@@ -595,7 +594,7 @@ def get_store_name(order: dict) -> str:
         return "Unknown Store"
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+
 def fetch_retail_order_details(date_min: datetime, date_max: datetime) -> List[dict]:
     """Fetch retail order details from Linnworks (No Shipping Required)."""
     import requests
@@ -1718,6 +1717,14 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             profit_data = fetch_d2c_orders_for_period(w_start_dt, w_end_dt)
             profit_metrics = calculate_d2c_period_metrics(profit_data)
 
+            # Orders sent out (from Linnworks, excludes retail)
+            lw = LinnworksClient()
+            if lw.authenticate():
+                lw_orders = lw.get_processed_orders(w_start_dt, w_end_dt)
+                sent_out = len([o for o in lw_orders if 'no shipping' not in (o.get('PostalServiceName') or '').lower()])
+            else:
+                sent_out = 0
+
             week_num = week_monday.isocalendar()[1]
             date_range_str = f"{week_monday.strftime('%-d %b')} - {week_sunday.strftime('%-d %b')}"
 
@@ -1734,7 +1741,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
             week_tiles.append({
                 'week_num': week_num, 'date_range': date_range_str,
                 'gross_revenue': gross_revenue, 'net_revenue': net_revenue,
-                'orders': orders, 'profit': profit,
+                'orders': orders, 'sent_out': sent_out, 'profit': profit,
                 'margin': margin, 'aov': aov, 'avg_cogs': avg_cogs,
                 'discounts': discounts, 'first_time': first_time,
             })
@@ -1759,7 +1766,8 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
 <p style="color:{HC_LIGHT_MINT}; font-size:0.7em; margin:0 0 12px 0;">NET REVENUE</p>
 <table style="width:100%; color:{HC_WHITE}; font-size:0.9em;">
 <tr>
-<td style="text-align:center;"><strong>{wt['orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Orders</span></td>
+<td style="text-align:center;"><strong>{wt['orders']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Received</span></td>
+<td style="text-align:center;"><strong>{wt['sent_out']}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Sent Out</span></td>
 <td style="text-align:center;"><strong>{format_currency(wt['profit'])}</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Profit</span></td>
 <td style="text-align:center;"><strong>{wt['margin']:.1f}%</strong><br/><span style="color:{HC_LIGHT_MINT}; font-size:0.8em;">Margin</span></td>
 </tr>
