@@ -1280,8 +1280,9 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         st.exception(e)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> List[dict]:
-    """Fetch D2C orders from Linnworks for a specific period."""
+    """Fetch D2C orders from Linnworks for a specific period (cached 1hr)."""
     store = _get_secret("SHOPIFY_STORE_DOMAIN")
     token = _get_secret("SHOPIFY_ACCESS_TOKEN")
     version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
