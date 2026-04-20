@@ -1280,9 +1280,19 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
         st.exception(e)
 
 
-@st.cache_resource(ttl=3600)
 def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> List[dict]:
     """Fetch D2C orders from Linnworks for a specific period (cached 1hr)."""
+    # Use string keys for reliable caching
+    cache_key = f"d2c_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+    if cache_key in st.session_state:
+        return st.session_state[cache_key]
+    result = _fetch_d2c_orders_uncached(start_date, end_date)
+    st.session_state[cache_key] = result
+    return result
+
+
+def _fetch_d2c_orders_uncached(start_date: datetime, end_date: datetime) -> List[dict]:
+    """Actual fetch logic for D2C orders."""
     store = _get_secret("SHOPIFY_STORE_DOMAIN")
     token = _get_secret("SHOPIFY_ACCESS_TOKEN")
     version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
