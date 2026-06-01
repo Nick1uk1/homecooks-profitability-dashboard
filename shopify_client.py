@@ -5,6 +5,7 @@ Shopify API Client with pagination and rate limit handling.
 import os
 import time
 import re
+import threading
 from typing import Optional, Generator
 from datetime import datetime
 
@@ -25,6 +26,47 @@ def _get_secret(key: str, default: str = "") -> str:
     return os.environ.get(key, default)
 
 
+_token_cache = {"token": None, "expires_at": 0.0}
+_token_lock = threading.Lock()
+_RENEW_BUFFER_SEC = 600  # re-mint 10 min before expiry
+_DEFAULT_TTL_SEC = 3600  # fallback if Shopify omits expires_in
+
+
+def get_access_token(force_refresh: bool = False) -> str:
+    """Mint a Shopify Admin API access token via OAuth client_credentials,
+    cached in-process until ~10 min before expiry."""
+    now = time.time()
+    with _token_lock:
+        if (not force_refresh
+                and _token_cache["token"]
+                and _token_cache["expires_at"] - _RENEW_BUFFER_SEC > now):
+            return _token_cache["token"]
+
+        store = _get_secret("SHOPIFY_STORE_DOMAIN")
+        client_id = _get_secret("SHOPIFY_CLIENT_ID")
+        client_secret = _get_secret("SHOPIFY_CLIENT_SECRET")
+        if not store or not client_id or not client_secret:
+            raise ValueError(
+                "SHOPIFY_STORE_DOMAIN, SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET are required"
+            )
+        store = store.replace("https://", "").replace("http://", "").rstrip("/")
+
+        r = requests.post(
+            f"https://{store}/admin/oauth/access_token",
+            json={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "grant_type": "client_credentials",
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        _token_cache["token"] = data["access_token"]
+        _token_cache["expires_at"] = now + float(data.get("expires_in", _DEFAULT_TTL_SEC))
+        return _token_cache["token"]
+
+
 class ShopifyClient:
     """Client for Shopify Admin API with pagination and rate limiting."""
 
@@ -35,13 +77,13 @@ class ShopifyClient:
         api_version: Optional[str] = None,
     ):
         self.store_domain = store_domain or _get_secret("SHOPIFY_STORE_DOMAIN")
-        self.access_token = access_token or _get_secret("SHOPIFY_ACCESS_TOKEN")
+        self.access_token = access_token or get_access_token()
         self.api_version = api_version or _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
         if not self.store_domain:
             raise ValueError("SHOPIFY_STORE_DOMAIN environment variable is required")
         if not self.access_token:
-            raise ValueError("SHOPIFY_ACCESS_TOKEN environment variable is required")
+            raise ValueError("Failed to obtain Shopify access token via OAuth client_credentials")
 
         # Clean domain
         self.store_domain = self.store_domain.replace("https://", "").replace("http://", "").rstrip("/")

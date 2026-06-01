@@ -18,7 +18,7 @@ import pandas as pd
 from datetime import datetime, timedelta, date
 from typing import List
 
-from shopify_client import ShopifyClient
+from shopify_client import ShopifyClient, get_access_token
 from costing import CostingService, PACKAGING_COSTS, get_packaging_totals
 from linnworks_client import LinnworksClient, get_dispatch_info
 from metrics import (
@@ -327,8 +327,10 @@ def check_env_vars() -> tuple[bool, List[str]]:
     missing = []
     if not _get_secret("SHOPIFY_STORE_DOMAIN"):
         missing.append("SHOPIFY_STORE_DOMAIN")
-    if not _get_secret("SHOPIFY_ACCESS_TOKEN"):
-        missing.append("SHOPIFY_ACCESS_TOKEN")
+    if not _get_secret("SHOPIFY_CLIENT_ID"):
+        missing.append("SHOPIFY_CLIENT_ID")
+    if not _get_secret("SHOPIFY_CLIENT_SECRET"):
+        missing.append("SHOPIFY_CLIENT_SECRET")
     return len(missing) == 0, missing
 
 
@@ -448,7 +450,7 @@ def fetch_d2c_revenue_by_order_date(date_min: datetime, date_max: datetime, _cac
     Returns revenue metrics for orders placed during the period.
     """
     store = _get_secret("SHOPIFY_STORE_DOMAIN")
-    token = _get_secret("SHOPIFY_ACCESS_TOKEN")
+    token = get_access_token()
     version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
     if not store or not token:
@@ -1328,7 +1330,7 @@ def render_retail_dashboard(date_min, date_max, date_start, date_end):
 def fetch_d2c_orders_for_period(start_date: datetime, end_date: datetime) -> List[dict]:
     """Fetch D2C orders from Linnworks for a specific period."""
     store = _get_secret("SHOPIFY_STORE_DOMAIN")
-    token = _get_secret("SHOPIFY_ACCESS_TOKEN")
+    token = get_access_token()
     version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
     client = LinnworksClient()
@@ -1408,7 +1410,7 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         import calendar
 
         store = _get_secret("SHOPIFY_STORE_DOMAIN")
-        token = _get_secret("SHOPIFY_ACCESS_TOKEN")
+        token = get_access_token()
         version = _get_secret("SHOPIFY_API_VERSION", "2024-07")
 
         # Calculate date ranges for MTD, YTD, Last Month, LFL
