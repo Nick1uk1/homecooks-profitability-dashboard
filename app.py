@@ -739,6 +739,33 @@ def get_manual_gopuff_orders() -> List[dict]:
             'total': 17793.60,
             'skus': 'Various',
         },
+        {
+            'store': 'Modern Milkman',
+            'ref': 'INV-0904',
+            'processed': '2026-05-22',  # May 2026 — PO 0109536
+            'num_items': 3,
+            'qty': 181,  # cases: 35 Burrito + 47 Quesadilla + 99 Sweet Potato Hash
+            'total': 3772.44,
+            'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
+        },
+        {
+            'store': 'Modern Milkman',
+            'ref': 'INV-0905',
+            'processed': '2026-05-23',  # May 2026 — PO O110914
+            'num_items': 3,
+            'qty': 206,  # cases: 52 Burrito + 86 Quesadilla + 68 Sweet Potato Hash
+            'total': 4430.88,
+            'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
+        },
+        {
+            'store': 'Modern Milkman',
+            'ref': 'INV-0906',
+            'processed': '2026-05-28',  # May 2026 — Order 3
+            'num_items': 3,
+            'qty': 244,  # cases: 84 Burrito + 76 Quesadilla + 84 Sweet Potato Hash
+            'total': 5300.64,
+            'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
+        },
     ]
 
 
