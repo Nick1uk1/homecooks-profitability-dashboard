@@ -777,6 +777,15 @@ def get_manual_gopuff_orders() -> List[dict]:
             'total': 4680.72,
             'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
         },
+        {
+            'store': 'Modern Milkman',
+            'ref': 'INV-0908',
+            'processed': '2026-06-03',  # Jun 2026 — PO 11496
+            'num_items': 3,
+            'qty': 213,  # cases: 71 Burrito + 70 Quesadilla + 72 Sweet Potato Hash
+            'total': 4624.02,
+            'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
+        },
         # --- May 2026 Default-postal mis-classifications (processed manually) ---
         {
             'store': 'Lincolnshire Co-operative Ltd - Newark Road Hykeham 001367',
