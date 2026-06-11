@@ -2143,28 +2143,47 @@ def render_d2c_dashboard(date_min, date_max, date_start, date_end, day_filter, i
         st.exception(e)
 
 
-def check_daily_refresh():
-    """Check if data should be refreshed (daily at 8am)."""
+@st.cache_resource
+def _daily_refresh_state():
+    """Cross-session marker for the last 8am boundary we refreshed at.
+
+    cache_resource is shared across ALL user sessions for the app's lifetime,
+    so this survives between visits — unlike session_state, which is per-tab.
+    """
+    return {"key": None}
+
+
+def _current_refresh_key() -> str:
+    """A day-level key that ticks over at 8am each day (server time)."""
     now = datetime.now()
     today_8am = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    boundary = today_8am if now >= today_8am else today_8am - timedelta(days=1)
+    return boundary.date().isoformat()
 
-    # Get last refresh time from session state
-    last_refresh = st.session_state.get('last_data_refresh')
 
-    # Refresh if:
-    # 1. Never refreshed before
-    # 2. Last refresh was before today's 8am and current time is after 8am
-    if last_refresh is None:
+def check_daily_refresh():
+    """Clear caches once per day at 8am — on the FIRST visit after 8am.
+
+    Previously this relied on session_state, so it only fired if a browser tab
+    happened to stay open across 8am (almost never). Now it uses a shared
+    cross-session marker, so the first page load after 8am each day pulls fresh
+    data for everyone. Only affects WHEN data reloads — no calculation changes.
+    """
+    key = _current_refresh_key()
+    state = _daily_refresh_state()
+    now = datetime.now()
+
+    # First load since the app (re)started — caches are already cold.
+    if state["key"] is None:
+        state["key"] = key
         st.session_state['last_data_refresh'] = now
-        return False  # First load, caches are empty anyway
+        return False
 
-    last_refresh_dt = datetime.fromisoformat(last_refresh) if isinstance(last_refresh, str) else last_refresh
-
-    if now >= today_8am and last_refresh_dt < today_8am:
-        # Clear all caches
+    # Crossed into a new 8am day → refresh the shared data caches.
+    if state["key"] != key:
         st.cache_data.clear()
+        state["key"] = key
         st.session_state['last_data_refresh'] = now
-        # Clear processed order cache
         for k in list(st.session_state.keys()):
             if k.startswith("proc_") or k == "loaded":
                 del st.session_state[k]
