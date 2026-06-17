@@ -2210,6 +2210,41 @@ def check_daily_refresh():
     return False
 
 
+def get_total_revenue_mtd() -> dict:
+    """Combined month-to-date revenue = Retail sales + D2C gross revenue.
+
+    Read-only aggregation over the SAME cached sources the Weekly Scorecard uses
+    (D2C gross from Shopify by order date; Retail from Linnworks via
+    calculate_period_profitability), so the figure stays consistent and the
+    Clear Cache button still applies. Adds no new fetching logic.
+    """
+    today_d = date.today()
+    month_start = datetime.combine(today_d.replace(day=1), datetime.min.time())
+    month_end = datetime.combine(today_d, datetime.max.time())
+
+    d2c_gross = fetch_d2c_revenue_by_order_date(month_start, month_end).get('gross_revenue', 0) or 0
+
+    retail_rev = 0
+    retail_list = fetch_retail_order_details(month_start, month_end)
+    if retail_list:
+        # Mirror the Scorecard's retail_list_to_metrics normalisation exactly.
+        df = pd.DataFrame(retail_list)
+        df.columns = [c.title() if c != 'total' else 'Total' for c in df.columns]
+        if 'Total' not in df.columns and 'total' in [c.lower() for c in df.columns]:
+            df = df.rename(columns={c: 'Total' for c in df.columns if c.lower() == 'total'})
+        if 'Qty' not in df.columns and 'qty' in [c.lower() for c in df.columns]:
+            df = df.rename(columns={c: 'Qty' for c in df.columns if c.lower() == 'qty'})
+        if 'Store' not in df.columns and 'store' in [c.lower() for c in df.columns]:
+            df = df.rename(columns={c: 'Store' for c in df.columns if c.lower() == 'store'})
+        retail_rev = calculate_period_profitability(df).get('revenue', 0)
+
+    return {
+        'retail': retail_rev,
+        'd2c_gross': d2c_gross,
+        'total': retail_rev + d2c_gross,
+    }
+
+
 def main():
     env_ok, missing = check_env_vars()
     if not env_ok:
@@ -2308,6 +2343,28 @@ def main():
             <p>Track profitability across D2C and Retail channels</p>
         </div>
         """, unsafe_allow_html=True)
+
+    # Combined Total Revenue headline (MTD) — Retail sales + D2C gross revenue.
+    # Wrapped so a data-source hiccup can never take down the rest of the app.
+    try:
+        rev_mtd = get_total_revenue_mtd()
+        st.markdown(
+            f"""
+            <div style="background:linear-gradient(90deg,#1f4f3f,#2d7a5f);
+                        border-radius:10px;padding:14px 22px;margin-bottom:18px;
+                        display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;">
+                <span style="font-size:13px;color:#cfeede;text-transform:uppercase;
+                             letter-spacing:.06em;font-weight:600;">Total Revenue (MTD)</span>
+                <span style="font-size:30px;font-weight:800;color:#fff;line-height:1;">£{rev_mtd['total']:,.0f}</span>
+                <span style="font-size:13px;color:#cfeede;">
+                    Retail £{rev_mtd['retail']:,.0f} &nbsp;+&nbsp; D2C gross £{rev_mtd['d2c_gross']:,.0f}
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        pass
 
     # Tabs
     tab_d2c, tab_retail, tab_gopuff, tab_scorecard = st.tabs(["HomeCooks D2C", "HomeCooks Retail", "Go Puff Sales", "Weekly Scorecard"])
