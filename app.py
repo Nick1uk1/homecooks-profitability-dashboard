@@ -2213,35 +2213,39 @@ def check_daily_refresh():
 def get_total_revenue_mtd() -> dict:
     """Combined month-to-date revenue = Retail sales + D2C gross revenue.
 
-    Read-only aggregation over the SAME cached sources the Weekly Scorecard uses
-    (D2C gross from Shopify by order date; Retail from Linnworks via
-    calculate_period_profitability), so the figure stays consistent and the
-    Clear Cache button still applies. Adds no new fetching logic.
+    Read-only aggregation that mirrors the existing tabs EXACTLY so the figure
+    can't disagree with them:
+      • Retail = all-time Linnworks retail orders + manual orders (Go Puff /
+        Modern Milkman), filtered to the current month, summing 'Total' —
+        identical to render_retail_dashboard's MTD revenue.
+      • D2C gross = Shopify gross sales by order date — same source the
+        Weekly Scorecard uses.
+    Uses the same cached fetches, so the Clear Cache button still applies.
     """
-    today_d = date.today()
-    month_start = datetime.combine(today_d.replace(day=1), datetime.min.time())
-    month_end = datetime.combine(today_d, datetime.max.time())
+    today = datetime.now()
+    current_month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    d2c_gross = fetch_d2c_revenue_by_order_date(month_start, month_end).get('gross_revenue', 0) or 0
+    # D2C gross (Shopify, order date)
+    month_start_dt = datetime.combine(today.date().replace(day=1), datetime.min.time())
+    month_end_dt = datetime.combine(today.date(), datetime.max.time())
+    d2c_gross = fetch_d2c_revenue_by_order_date(month_start_dt, month_end_dt).get('gross_revenue', 0) or 0
 
-    retail_rev = 0
-    retail_list = fetch_retail_order_details(month_start, month_end)
-    if retail_list:
-        # Mirror the Scorecard's retail_list_to_metrics normalisation exactly.
-        df = pd.DataFrame(retail_list)
-        df.columns = [c.title() if c != 'total' else 'Total' for c in df.columns]
-        if 'Total' not in df.columns and 'total' in [c.lower() for c in df.columns]:
-            df = df.rename(columns={c: 'Total' for c in df.columns if c.lower() == 'total'})
-        if 'Qty' not in df.columns and 'qty' in [c.lower() for c in df.columns]:
-            df = df.rename(columns={c: 'Qty' for c in df.columns if c.lower() == 'qty'})
-        if 'Store' not in df.columns and 'store' in [c.lower() for c in df.columns]:
-            df = df.rename(columns={c: 'Store' for c in df.columns if c.lower() == 'store'})
-        retail_rev = calculate_period_profitability(df).get('revenue', 0)
+    # Retail MTD — mirror render_retail_dashboard precisely (incl. manual orders).
+    retail_rev = 0.0
+    all_retail_orders = list(fetch_all_retail_orders())  # copy — never mutate the cached list
+    for manual_order in get_manual_gopuff_orders():
+        all_retail_orders.append(manual_order)
+    if all_retail_orders:
+        df_all = pd.DataFrame(all_retail_orders)
+        df_all.columns = ['Store', 'Reference', 'Date', 'Items', 'Qty', 'Total', 'SKUs']
+        df_all['Date'] = pd.to_datetime(df_all['Date'], errors='coerce')
+        df_mtd = df_all[(df_all['Date'] >= current_month_start) & (df_all['Date'] <= today)]
+        retail_rev = float(df_mtd['Total'].sum())
 
     return {
         'retail': retail_rev,
-        'd2c_gross': d2c_gross,
-        'total': retail_rev + d2c_gross,
+        'd2c_gross': float(d2c_gross),
+        'total': retail_rev + float(d2c_gross),
     }
 
 
