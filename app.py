@@ -831,6 +831,24 @@ def get_manual_gopuff_orders() -> List[dict]:
             'total': 5235.84,  # 84×£24.30 + 73×£21.60 + 84×£19.26
             'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
         },
+        {
+            'store': 'Modern Milkman',
+            'ref': 'INV-0914',
+            'processed': '2026-06-24',  # Jun 2026 — Ref 112474
+            'num_items': 3,
+            'qty': 237,  # cases: 69 Burrito + 84 Quesadilla + 84 Sweet Potato Hash
+            'total': 5108.94,  # 69×£24.30 + 84×£21.60 + 84×£19.26
+            'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
+        },
+        {
+            'store': 'On the Rocks Birmingham',
+            'ref': 'INV-0916',
+            'processed': '2026-06-24',  # Jun 2026 — Ref P44656
+            'num_items': 2,
+            'qty': 330,  # cases: 168 Shawarma + 162 Teriyaki
+            'total': 8712.00,  # 168×£26.40 + 162×£26.40
+            'skus': 'Chargrilled Chicken Shawarma, Grilled Chicken Teriyaki',
+        },
         # --- May 2026 Default-postal mis-classifications (processed manually) ---
         {
             'store': 'Lincolnshire Co-operative Ltd - Newark Road Hykeham 001367',
