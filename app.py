@@ -849,6 +849,15 @@ def get_manual_gopuff_orders() -> List[dict]:
             'total': 8712.00,  # 168×£26.40 + 162×£26.40
             'skus': 'Chargrilled Chicken Shawarma, Grilled Chicken Teriyaki',
         },
+        {
+            'store': 'Modern Milkman',
+            'ref': 'INV-0917',
+            'processed': '2026-06-29',  # Jun 2026 — Ref 112620
+            'num_items': 3,
+            'qty': 238,  # cases: 76 Burrito + 78 Quesadilla + 84 Sweet Potato Hash
+            'total': 5149.44,  # 76×£24.30 + 78×£21.60 + 84×£19.26
+            'skus': 'Breakfast Burrito, Quesadilla, Sweet Potato Hash',
+        },
         # --- May 2026 Default-postal mis-classifications (processed manually) ---
         {
             'store': 'Lincolnshire Co-operative Ltd - Newark Road Hykeham 001367',
